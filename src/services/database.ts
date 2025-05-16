@@ -153,6 +153,60 @@ export async function saveQuestions(questions: GeneratedQuestion[], topicIdMap: 
 }
 
 /**
+ * Get or create a default game session
+ */
+export async function getOrCreateDefaultGameSession(chapterId?: string, teacherName?: string) {
+  try {
+    console.log('Getting or creating default game session');
+    
+    // Check if an active session exists
+    const { data: existingSessions, error: fetchError } = await supabase
+      .from('game_sessions')
+      .select('*')
+      .eq('status', 'not_started')
+      .limit(1);
+    
+    if (fetchError) {
+      console.error('Error fetching existing sessions:', fetchError);
+      throw fetchError;
+    }
+    
+    // If a session exists, return it
+    if (existingSessions && existingSessions.length > 0) {
+      console.log('Found existing game session:', existingSessions[0]);
+      return existingSessions[0];
+    }
+    
+    // Generate a random 6-character game code
+    const gameCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    
+    // Create a new session
+    const { data, error } = await supabase
+      .from('game_sessions')
+      .insert({
+        chapter_id: chapterId,
+        teacher_name: teacherName || 'Anonymous Teacher',
+        status: 'not_started',
+        game_code: gameCode,
+        started_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error creating game session:', error);
+      throw error;
+    }
+    
+    console.log('Created new game session:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in getOrCreateDefaultGameSession:', error);
+    throw new Error('Failed to get or create game session');
+  }
+}
+
+/**
  * Get all chapters from the database
  */
 export async function getAllChapters() {
