@@ -6,16 +6,11 @@ import React, { useEffect, useState } from 'react';
 import { Clock, Users, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import Button from '../ui/Button';
-import { getGameSessionByCode, getStudentsBySessionId } from '../../services/database';
+import { getStudentsBySessionId } from '../../services/database';
 import { Student, GameSession } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 
-interface WaitingRoomProps {
-  gameCode: string;
-}
-
-const WaitingRoom: React.FC<WaitingRoomProps> = ({ gameCode }) => {
-  const [gameSession, setGameSession] = useState<GameSession | null>(null);
+const WaitingRoom: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,18 +22,22 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({ gameCode }) => {
     
     const fetchData = async () => {
       try {
-        // Get game session
-        const sessionData = await getGameSessionByCode(gameCode);
-        setGameSession(sessionData);
+        // Get student data from local storage
+        const studentData = localStorage.getItem('student');
+        if (!studentData) {
+          throw new Error('Student data not found');
+        }
+        
+        const student = JSON.parse(studentData);
         
         // Get students in session
-        const studentsData = await getStudentsBySessionId(sessionData.id);
+        const studentsData = await getStudentsBySessionId(student.session_id);
         setStudents(studentsData);
         
         setLoading(false);
       } catch (error) {
-        console.error('Error fetching game data:', error);
-        setError('Could not connect to the game. Please try again.');
+        console.error('Error fetching lobby data:', error);
+        setError('Could not connect to the game lobby. Please try again.');
         setLoading(false);
       }
     };
@@ -52,7 +51,7 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({ gameCode }) => {
     return () => {
       clearInterval(interval);
     };
-  }, [gameCode]);
+  }, []);
   
   // Find current student
   const currentStudent = authState.user 
@@ -70,7 +69,7 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({ gameCode }) => {
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-t-[#3A7AFE] border-gray-200 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Connecting to game session...</p>
+          <p className="text-gray-600">Connecting to game lobby...</p>
         </div>
       </div>
     );
@@ -83,7 +82,7 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({ gameCode }) => {
           <CardHeader>
             <CardTitle>Connection Error</CardTitle>
             <CardDescription>
-              Could not connect to the game session
+              Could not connect to the game lobby
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -99,51 +98,21 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({ gameCode }) => {
     );
   }
   
-  if (!gameSession) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Game Not Found</CardTitle>
-            <CardDescription>
-              The game session could not be found
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center">
-              <p className="text-gray-600 mb-4">Please check the game code and try again.</p>
-              <Button onClick={() => window.location.reload()}>
-                Return to Login
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-  
   return (
     <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
       <Card className="w-full max-w-lg">
         <CardHeader>
           <CardTitle>Waiting Room</CardTitle>
           <CardDescription>
-            Game Code: <span className="font-medium text-[#3A7AFE]">{gameCode}</span>
+            Waiting for the game to start
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {gameSession.status === 'in_progress' ? (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                <p className="text-green-700 font-medium">The game is starting!</p>
-                <p className="text-green-600 text-sm">You will be redirected shortly...</p>
-              </div>
-            ) : (
-              <div className="bg-[#EEF4FF] rounded-lg p-4 text-center">
-                <Clock className="w-8 h-8 text-[#3A7AFE] mx-auto mb-2" />
-                <p className="text-gray-700">Waiting for the teacher to start the game...</p>
-              </div>
-            )}
+            <div className="bg-[#EEF4FF] rounded-lg p-4 text-center">
+              <Clock className="w-8 h-8 text-[#3A7AFE] mx-auto mb-2" />
+              <p className="text-gray-700">Waiting for the teacher to start the game...</p>
+            </div>
             
             <div>
               <div className="flex items-center justify-between mb-2">

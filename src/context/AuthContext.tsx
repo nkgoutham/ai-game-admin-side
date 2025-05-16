@@ -11,7 +11,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, role: 'teacher' | 'player') => Promise<void>;
   signOut: () => Promise<void>;
-  joinAsPlayer: (name: string, gameCode: string) => Promise<void>;
+  joinAsPlayer: (name: string) => Promise<void>;
   isTeacher: () => boolean;
   isPlayer: () => boolean;
 }
@@ -161,33 +161,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const joinAsPlayer = async (name: string, gameCode: string) => {
+  const joinAsPlayer = async (name: string) => {
     try {
       setAuthState({ ...authState, isLoading: true, error: null });
       
-      // Find game session with the provided code
-      const { data: gameSessions, error: gameError } = await supabase
-        .from('game_sessions')
-        .select('*')
-        .eq('game_code', gameCode)
-        .single();
-      
-      if (gameError) throw new Error('Invalid game code or game not found');
+      // Find any available game session
+      // For now, we'll create a dummy session ID if none exists
+      let sessionId = 'temp-session-id';
       
       // Create a new student record
       const { data: student, error: studentError } = await supabase
         .from('students')
         .insert({
           name,
-          session_id: gameSessions.id
+          session_id: sessionId
         })
         .select()
         .single();
       
-      if (studentError) throw studentError;
+      if (studentError) {
+        console.error('Error creating student record:', studentError);
+        throw new Error('Could not join the lobby. Please try again.');
+      }
       
-      // For now, we'll just store the student info in local storage
-      // In a real app, we might use a custom auth method
+      // Store the student info in local storage
       localStorage.setItem('student', JSON.stringify(student));
       
       // Update auth state with a pseudo-user with player role
@@ -202,11 +199,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       
     } catch (error) {
-      console.error('Join game error:', error);
+      console.error('Join lobby error:', error);
       setAuthState({ 
         ...authState, 
         isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to join game' 
+        error: error instanceof Error ? error.message : 'Failed to join lobby' 
       });
     }
   };

@@ -13,27 +13,6 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 const MainContent: React.FC = () => {
   const { view } = useAppContext();
   const { authState, isTeacher, isPlayer } = useAuth();
-  const [gameCode, setGameCode] = useState<string | null>(null);
-
-  // Get game code from local storage for player
-  useEffect(() => {
-    // Check if user is a player and has joined a game
-    if (isPlayer()) {
-      const studentData = localStorage.getItem('student');
-      if (studentData) {
-        try {
-          const student = JSON.parse(studentData);
-          if (student.session_id) {
-            // Fetch game code from session id
-            // For demonstration, we'll just use a dummy code
-            setGameCode('ABCDEF');
-          }
-        } catch (e) {
-          console.error('Error parsing student data:', e);
-        }
-      }
-    }
-  }, [isPlayer]);
 
   // Loading state
   if (authState.isLoading) {
@@ -49,15 +28,9 @@ const MainContent: React.FC = () => {
     return <LoginPage />;
   }
 
-  // Player view
+  // Player view - show waiting room
   if (isPlayer()) {
-    // If player has joined a game, show the waiting room
-    if (gameCode) {
-      return <WaitingRoom gameCode={gameCode} />;
-    }
-    
-    // Otherwise, show the login page
-    return <LoginPage />;
+    return <WaitingRoom />;
   }
 
   // Teacher view - show appropriate view based on app state

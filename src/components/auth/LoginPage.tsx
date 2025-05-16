@@ -13,7 +13,6 @@ const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [gameCode, setGameCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const { signIn, signUp, joinAsPlayer, authState } = useAuth();
@@ -45,15 +44,10 @@ const LoginPage: React.FC = () => {
       return;
     }
     
-    if (!gameCode) {
-      alert('Please enter a game code');
-      return;
-    }
-    
     setIsSubmitting(true);
     
     try {
-      await joinAsPlayer(name, gameCode);
+      await joinAsPlayer(name);
     } catch (error) {
       console.error('Join error:', error);
     } finally {
@@ -177,30 +171,13 @@ const LoginPage: React.FC = () => {
                     />
                   </div>
                   
-                  <div>
-                    <label htmlFor="gameCode" className="block text-sm font-medium text-gray-700">
-                      Game Code
-                    </label>
-                    <input
-                      id="gameCode"
-                      name="gameCode"
-                      type="text"
-                      required
-                      value={gameCode}
-                      onChange={(e) => setGameCode(e.target.value.toUpperCase())}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#3A7AFE] focus:border-[#3A7AFE] sm:text-sm"
-                      placeholder="Enter 6-digit code"
-                      maxLength={6}
-                    />
-                  </div>
-                  
                   <Button 
                     type="submit" 
                     fullWidth 
                     isLoading={isSubmitting}
                     disabled={isSubmitting}
                   >
-                    Join Game
+                    Join Lobby
                   </Button>
                 </div>
               </form>
@@ -211,7 +188,7 @@ const LoginPage: React.FC = () => {
             <p className="text-xs text-gray-500 text-center w-full">
               {activeTab === 'teacher' 
                 ? 'Sign in to manage your games and review student progress'
-                : 'Enter your name and the game code to join a session'}
+                : 'Enter your name to join the game lobby'}
             </p>
           </CardFooter>
         </Card>
