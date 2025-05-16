@@ -59,11 +59,33 @@ function App() {
     <AuthProvider>
       <AppProvider>
         <div className="min-h-screen bg-gray-50 font-['Poppins',sans-serif]">
-          <MainContent />
+          <TeacherOrPlayerView />
         </div>
       </AppProvider>
     </AuthProvider>
   );
 }
+
+// Component to decide whether to show teacher layout or player view
+const TeacherOrPlayerView: React.FC = () => {
+  const { authState, isTeacher, isPlayer } = useAuth();
+
+  // Loading, unauthenticated, or player views
+  if (authState.isLoading || !authState.user || isPlayer()) {
+    return <MainContent />;
+  }
+
+  // Teacher view with original layout
+  if (isTeacher()) {
+    return (
+      <Layout>
+        <MainContent />
+      </Layout>
+    );
+  }
+
+  // Fallback
+  return <MainContent />;
+};
 
 export default App;
