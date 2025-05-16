@@ -49,7 +49,7 @@ export interface ProcessingState {
   error?: string;
 }
 
-export type AppView = 'upload' | 'processing' | 'review' | 'launch';
+export type AppView = 'upload' | 'processing' | 'review' | 'launch' | 'lobby';
 
 // Auth and user types
 export interface UserProfile {
@@ -68,7 +68,7 @@ export interface AuthState {
 export interface Student {
   id: string;
   name: string;
-  session_id: string;
+  session_id: string | null;
   joined_at: string;
 }
 
@@ -80,4 +80,14 @@ export interface GameSession {
   ended_at: string | null;
   current_topic_id: string | null;
   status: 'not_started' | 'in_progress' | 'completed';
+  game_code: string;
+}
+
+// Game state types
+export interface GameState {
+  status: 'waiting' | 'countdown' | 'playing' | 'results';
+  countdown: number;
+  currentTopic: Topic | null;
+  currentQuestion: Question | null;
+  sessionId: string | null;
 }

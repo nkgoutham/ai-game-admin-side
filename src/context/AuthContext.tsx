@@ -5,6 +5,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { AuthState, UserProfile } from '../types';
 import { supabase } from '../lib/supabase';
+import { addStudentToSession } from '../services/database';
 
 interface AuthContextType {
   authState: AuthState;
@@ -180,24 +181,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setAuthState({ ...authState, isLoading: true, error: null });
       
-      // Find any available game session
-      // For now, we'll create a dummy session ID if none exists
-      let sessionId = 'temp-session-id';
-      
-      // Create a new student record
-      const { data: student, error: studentError } = await supabase
-        .from('students')
-        .insert({
-          name,
-          session_id: sessionId
-        })
-        .select()
-        .single();
-      
-      if (studentError) {
-        console.error('Error creating student record:', studentError);
-        throw new Error('Could not join the lobby. Please try again.');
-      }
+      // Simply add the student without requiring a session ID
+      const student = await addStudentToSession(name);
       
       // Store the student info in local storage
       localStorage.setItem('student', JSON.stringify(student));
@@ -214,11 +199,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       
     } catch (error) {
-      console.error('Join lobby error:', error);
+      console.error('Join game error:', error);
       setAuthState({ 
         ...authState, 
         isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to join lobby' 
+        error: error instanceof Error ? error.message : 'Failed to join game' 
       });
     }
   };

@@ -2,36 +2,31 @@
  * Waiting Room component for Ether Excel
  * Student-facing component for waiting to join the game
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Clock, Users, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import Button from '../ui/Button';
-import { getStudentsBySessionId } from '../../services/database';
+import { getAllStudents } from '../../services/database';
 import { Student, GameSession } from '../../types';
 import { useAuth } from '../../context/AuthContext';
+import { useAppContext } from '../../context/AppContext';
+import { supabase } from '../../lib/supabase';
 
 const WaitingRoom: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { authState } = useAuth();
+  const { gameState, setGameState } = useAppContext();
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const countdownTimerRef = useRef<number | null>(null);
   
-  // Poll for updates
+  // Poll for updates and set up subscription
   useEffect(() => {
-    let interval: number;
-    
     const fetchData = async () => {
       try {
-        // Get student data from local storage
-        const studentData = localStorage.getItem('student');
-        if (!studentData) {
-          throw new Error('Student data not found');
-        }
-        
-        const student = JSON.parse(studentData);
-        
-        // Get students in session
-        const studentsData = await getStudentsBySessionId(student.session_id);
+        // Get all students
+        const studentsData = await getAllStudents();
         setStudents(studentsData);
         
         setLoading(false);
@@ -45,13 +40,80 @@ const WaitingRoom: React.FC = () => {
     // Initial fetch
     fetchData();
     
-    // Set up polling
-    interval = window.setInterval(fetchData, 5000);
+    // Subscribe to game_sessions changes
+    const subscription = supabase
+      .channel('public:game_sessions')
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'game_sessions' 
+      }, (payload) => {
+        console.log('Game session update received:', payload);
+        
+        // Check if any game is starting
+        if (payload.new.status === 'in_progress') {
+          // Start countdown
+          setGameState({
+            ...gameState,
+            status: 'countdown'
+          });
+        }
+      })
+      .subscribe();
+    
+    // Set up polling for students
+    const interval = window.setInterval(fetchData, 5000);
     
     return () => {
       clearInterval(interval);
+      supabase.removeChannel(subscription);
     };
   }, []);
+
+  // Handle game state changes
+  useEffect(() => {
+    if (gameState.status === 'countdown') {
+      // Start countdown
+      startCountdown();
+    }
+  }, [gameState.status]);
+
+  // Countdown timer effect
+  useEffect(() => {
+    return () => {
+      // Clean up timer on unmount
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Start countdown from 3 to 1
+  const startCountdown = () => {
+    setCountdown(3);
+    
+    countdownTimerRef.current = window.setInterval(() => {
+      setCountdown(prev => {
+        if (prev === 1) {
+          // When countdown reaches 1, clear interval and move to playing state
+          if (countdownTimerRef.current) {
+            clearInterval(countdownTimerRef.current);
+          }
+          
+          // Set game state to playing after countdown finishes
+          setTimeout(() => {
+            setGameState({
+              ...gameState,
+              status: 'playing'
+            });
+          }, 1000);
+          
+          return 0;
+        }
+        return prev ? prev - 1 : null;
+      });
+    }, 1000);
+  };
   
   // Find current student
   const currentStudent = authState.user 
@@ -97,7 +159,22 @@ const WaitingRoom: React.FC = () => {
       </div>
     );
   }
-  
+
+  // Show countdown overlay when in countdown state
+  if (countdown !== null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900 bg-opacity-80 p-4 fixed inset-0 z-50">
+        <div className="text-center">
+          <div className="w-24 h-24 rounded-full bg-[#3A7AFE] flex items-center justify-center mx-auto mb-8 animate-pulse">
+            <span className="text-5xl font-bold text-white">{countdown}</span>
+          </div>
+          <p className="text-2xl font-bold text-white">Game Starting...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Main waiting room
   return (
     <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
       <Card className="w-full max-w-lg">
