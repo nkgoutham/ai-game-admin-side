@@ -70,17 +70,7 @@ export interface Student {
   name: string;
   session_id: string | null;
   joined_at: string;
-}
-
-export interface GameSession {
-  id: string;
-  chapter_id: string;
-  teacher_name: string;
-  started_at: string;
-  ended_at: string | null;
-  current_topic_id: string | null;
-  status: 'not_started' | 'in_progress' | 'completed';
-  game_code: string;
+  status?: 'waiting' | 'playing' | 'completed';
 }
 
 // Game state types

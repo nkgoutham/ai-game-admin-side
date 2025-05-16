@@ -17,7 +17,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../ui/Card';
 import Button from '../ui/Button';
 import { useAppContext } from '../../context/AppContext';
-import { createGameSession, getOrCreateDefaultGameSession, updateGameSessionStatus, getAllStudents } from '../../services/database';
+import { getAllStudents, updateStudentStatus } from '../../services/database';
 import { Student } from '../../types';
 
 const GameLaunch: React.FC = () => {
@@ -26,8 +26,6 @@ const GameLaunch: React.FC = () => {
     topics, 
     resetState, 
     setView, 
-    gameSession, 
-    setGameSession,
     gameState,
     setGameState
   } = useAppContext();
@@ -38,33 +36,16 @@ const GameLaunch: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [timeLimit, setTimeLimit] = useState(5);
   
-  // Initialize or fetch game session on component mount
+  // Initialize or fetch students on component mount
   useEffect(() => {
-    if (!gameSession) {
-      initializeGameSession();
-    } else if (gameSession.status === 'in_progress') {
-      setLaunchState('active');
-    }
     fetchStudents();
+    
+    // Create polling for students list
+    const interval = setInterval(fetchStudents, 10000);
+    
+    return () => clearInterval(interval);
   }, []);
 
-  // Initialize a game session
-  const initializeGameSession = async () => {
-    try {
-      const session = await getOrCreateDefaultGameSession(
-        currentChapter?.id, 
-        'Anonymous Teacher'
-      );
-      setGameSession(session);
-      
-      if (session.status === 'in_progress') {
-        setLaunchState('active');
-      }
-    } catch (error) {
-      console.error('Error initializing game session:', error);
-    }
-  };
-  
   // Fetch all students in the system
   const fetchStudents = async () => {
     try {
@@ -90,13 +71,6 @@ const GameLaunch: React.FC = () => {
     setLaunchState('starting');
     
     try {
-      // Create a game session in the database if needed
-      let session = gameSession;
-      if (!session) {
-        session = await createGameSession(currentChapter?.id || '', 'Anonymous Teacher');
-        setGameSession(session);
-      }
-      
       setTimeout(() => {
         setLaunchState('active');
       }, 2000);
@@ -121,26 +95,17 @@ const GameLaunch: React.FC = () => {
   
   // Handle start game
   const handleStartGame = async () => {
-    if (!gameSession) {
-      alert('No active game session found');
-      return;
-    }
-    
     try {
-      // Update game session status to in_progress
-      await updateGameSessionStatus(gameSession.id, 'in_progress');
-      
-      // Set launch state to active if not already
-      if (launchState !== 'active') {
-        setLaunchState('active');
+      // Update all student statuses to 'playing'
+      for (const student of students) {
+        await updateStudentStatus(student.id, 'playing');
       }
       
       // Update game state to playing
       setGameState({
         ...gameState,
         status: 'playing',
-        currentTopic: topics.length > 0 ? topics[0] : null,
-        sessionId: gameSession.id
+        currentTopic: topics.length > 0 ? topics[0] : null
       });
       
       // Navigate to the leaderboard/game view for teacher
@@ -403,9 +368,9 @@ const GameLaunch: React.FC = () => {
                     onClick={handleStartGame}
                     icon={<Play className="w-4 h-4 mr-1" />}
                     fullWidth
-                    disabled={gameSession?.status === 'in_progress' || students.length === 0}
+                    disabled={students.length === 0}
                   >
-                    {gameSession?.status === 'in_progress' ? 'Game Started' : 'Start Game Now'}
+                    Start Game Now
                   </Button>
                 </div>
               </div>

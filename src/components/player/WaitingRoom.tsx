@@ -6,8 +6,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Clock, Users, RefreshCw, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import Button from '../ui/Button';
-import { getAllStudents } from '../../services/database';
-import { Student, GameSession, Question, Topic } from '../../types';
+import { getAllStudents, updateStudentStatus } from '../../services/database';
+import { Student, Question, Topic } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useAppContext } from '../../context/AppContext';
 import { supabase } from '../../lib/supabase';
@@ -176,18 +176,18 @@ const WaitingRoom: React.FC = () => {
     // Initial fetch
     fetchData();
     
-    // Subscribe to game_sessions changes
+    // Subscribe to students changes
     const subscription = supabase
-      .channel('public:game_sessions')
+      .channel('public:students')
       .on('postgres_changes', { 
         event: 'UPDATE', 
         schema: 'public', 
-        table: 'game_sessions' 
+        table: 'students' 
       }, (payload) => {
-        console.log('Game session update received:', payload);
+        console.log('Student update received:', payload);
         
-        // Check if any game is starting
-        if (payload.new.status === 'in_progress') {
+        // Check if any student is changing to playing status
+        if (payload.new.status === 'playing') {
           // Start countdown
           setGameState({
             ...gameState,
@@ -287,6 +287,11 @@ const WaitingRoom: React.FC = () => {
           ...gameState,
           status: 'results'
         });
+        
+        // Update student status to completed
+        if (authState.user) {
+          updateStudentStatus(authState.user.id, 'completed');
+        }
       }
       
       // Reset for next question

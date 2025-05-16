@@ -199,96 +199,22 @@ export async function getUniqueGrades() {
 }
 
 /**
- * Get or create the default game session
+ * Get chapters by grade
  */
-export async function getOrCreateDefaultGameSession(chapterId?: string, teacherName: string = 'Anonymous') {
+export async function getChaptersByGrade(grade: string) {
   try {
-    // First, check if we have any active game session
-    const { data: existingSessions, error: fetchError } = await supabase
-      .from('game_sessions')
+    const { data, error } = await supabase
+      .from('chapters')
       .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1);
-    
-    if (fetchError) {
-      console.error('Error fetching game sessions:', fetchError);
-      throw fetchError;
-    }
-    
-    // If we have an existing session, return it
-    if (existingSessions && existingSessions.length > 0) {
-      console.log('Using existing game session:', existingSessions[0].id);
-      return existingSessions[0];
-    }
-    
-    // No session exists, create a new one
-    // Generate a random game code
-    const gameCode = generateGameCode();
-    
-    // If no chapterId is provided, we'll add a placeholder
-    const defaultChapterId = chapterId || '00000000-0000-0000-0000-000000000000';
-    
-    const { data, error } = await supabase
-      .from('game_sessions')
-      .insert({
-        chapter_id: defaultChapterId,
-        teacher_name: teacherName,
-        status: 'not_started',
-        game_code: gameCode
-      })
-      .select()
-      .single();
-    
-    if (error) {
-      console.error('Error creating default game session:', error);
-      throw error;
-    }
-    
-    console.log('Created new default game session:', data.id);
-    return data;
-  } catch (error) {
-    console.error('Error with game session:', error);
-    throw new Error('Failed to get or create game session');
-  }
-}
-
-/**
- * Create a new game session
- */
-export async function createGameSession(chapterId: string, teacherName: string = 'Anonymous') {
-  try {
-    // Generate a random game code
-    const gameCode = generateGameCode();
-    
-    const { data, error } = await supabase
-      .from('game_sessions')
-      .insert({
-        chapter_id: chapterId,
-        teacher_name: teacherName,
-        status: 'not_started',
-        game_code: gameCode
-      })
-      .select()
-      .single();
+      .eq('grade', grade)
+      .order('created_at', { ascending: false });
     
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error creating game session:', error);
-    throw new Error('Failed to create game session');
+    console.error('Error getting chapters by grade:', error);
+    throw new Error('Failed to get chapters by grade from database');
   }
-}
-
-/**
- * Generate a random 6-character game code
- */
-function generateGameCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Omit confusing characters
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
 }
 
 /**
@@ -307,25 +233,6 @@ export async function getChapterById(chapterId: string) {
   } catch (error) {
     console.error('Error getting chapter:', error);
     throw new Error('Failed to get chapter from database');
-  }
-}
-
-/**
- * Get chapters by grade
- */
-export async function getChaptersByGrade(grade: string) {
-  try {
-    const { data, error } = await supabase
-      .from('chapters')
-      .select('*')
-      .eq('grade', grade)
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error getting chapters by grade:', error);
-    throw new Error('Failed to get chapters by grade from database');
   }
 }
 
@@ -366,24 +273,6 @@ export async function getQuestionsByTopicId(topicId: string) {
 }
 
 /**
- * Get students by session ID
- */
-export async function getStudentsBySessionId(sessionId: string) {
-  try {
-    const { data, error } = await supabase
-      .from('students')
-      .select('*')
-      .eq('session_id', sessionId);
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error getting students:', error);
-    throw new Error('Failed to get students from database');
-  }
-}
-
-/**
  * Get all students in the system
  */
 export async function getAllStudents() {
@@ -402,20 +291,15 @@ export async function getAllStudents() {
 }
 
 /**
- * Add a student to a game session
+ * Add a student to the game
  */
-export async function addStudentToSession(name: string, sessionId: string | null = null) {
+export async function addStudentToSession(name: string) {
   try {
-    // Create student object with optional session ID
-    const studentObj: any = {
+    const studentObj = {
       name,
-      joined_at: new Date().toISOString()
+      joined_at: new Date().toISOString(),
+      status: 'waiting'
     };
-    
-    // Only add session_id if it's provided
-    if (sessionId) {
-      studentObj.session_id = sessionId;
-    }
     
     const { data, error } = await supabase
       .from('students')
@@ -427,7 +311,27 @@ export async function addStudentToSession(name: string, sessionId: string | null
     return data;
   } catch (error) {
     console.error('Error adding student:', error);
-    throw new Error('Failed to add student to game session');
+    throw new Error('Failed to add student to the game');
+  }
+}
+
+/**
+ * Update student status
+ */
+export async function updateStudentStatus(studentId: string, status: 'waiting' | 'playing' | 'completed') {
+  try {
+    const { data, error } = await supabase
+      .from('students')
+      .update({ status })
+      .eq('id', studentId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error updating student status:', error);
+    throw new Error('Failed to update student status');
   }
 }
 
@@ -457,79 +361,20 @@ export async function saveStudentResponse(studentId: string, questionId: string,
 }
 
 /**
- * Update game session status
+ * Get student responses
  */
-export async function updateGameSessionStatus(sessionId: string, status: 'not_started' | 'in_progress' | 'completed') {
+export async function getStudentResponses(studentId: string) {
   try {
     const { data, error } = await supabase
-      .from('game_sessions')
-      .update({ status })
-      .eq('id', sessionId)
-      .select()
-      .single();
+      .from('responses')
+      .select('*, questions(*)')
+      .eq('student_id', studentId);
     
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error updating game session:', error);
-    throw new Error('Failed to update game session status');
-  }
-}
-
-/**
- * Set current topic for game session
- */
-export async function setCurrentTopic(sessionId: string, topicId: string) {
-  try {
-    const { data, error } = await supabase
-      .from('game_sessions')
-      .update({ current_topic_id: topicId })
-      .eq('id', sessionId)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error setting current topic:', error);
-    throw new Error('Failed to set current topic for game session');
-  }
-}
-
-/**
- * Get active game sessions
- */
-export async function getActiveGameSessions() {
-  try {
-    const { data, error } = await supabase
-      .from('game_sessions')
-      .select('*')
-      .eq('status', 'in_progress');
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error getting active game sessions:', error);
-    throw new Error('Failed to get active game sessions');
-  }
-}
-
-/**
- * Get game session by code
- */
-export async function getGameSessionByCode(gameCode: string) {
-  try {
-    const { data, error } = await supabase
-      .from('game_sessions')
-      .select('*')
-      .eq('game_code', gameCode)
-      .single();
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error getting game session by code:', error);
-    throw new Error('Failed to get game session');
+    console.error('Error getting student responses:', error);
+    throw new Error('Failed to get student responses');
   }
 }
 
@@ -553,10 +398,6 @@ export async function clearAllContent() {
     console.log('Deleting questions...');
     const { error: qError } = await supabase.from('questions').delete();
     if (qError) console.error('Error deleting questions:', qError);
-    
-    console.log('Deleting game_sessions...');
-    const { error: gsError } = await supabase.from('game_sessions').delete();
-    if (gsError) console.error('Error deleting game_sessions:', gsError);
     
     console.log('Deleting topic_details...');
     const { error: tdError } = await supabase.from('topic_details').delete();
