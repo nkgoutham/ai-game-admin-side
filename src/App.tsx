@@ -4,6 +4,7 @@
  */
 import React from 'react';
 import Layout from './components/layout/Layout';
+import ChapterSelection from './components/selection/ChapterSelection';
 import ChapterUpload from './components/upload/ChapterUpload';
 import AIProcessing from './components/processing/AIProcessing';
 import ContentReview from './components/review/ContentReview';
@@ -19,6 +20,8 @@ const MainContent: React.FC = () => {
   const { view } = useAppContext();
 
   switch (view) {
+    case 'select':
+      return <ChapterSelection />;
     case 'upload':
       return <ChapterUpload />;
     case 'processing':
@@ -30,7 +33,7 @@ const MainContent: React.FC = () => {
     case 'lobby':
       return <LobbyView />;
     default:
-      return <ChapterUpload />;
+      return <ChapterSelection />;
   }
 };
 

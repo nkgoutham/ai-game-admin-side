@@ -49,7 +49,7 @@ export interface ProcessingState {
   error?: string;
 }
 
-export type AppView = 'upload' | 'processing' | 'review' | 'launch' | 'lobby';
+export type AppView = 'select' | 'upload' | 'processing' | 'review' | 'launch' | 'lobby';
 
 // Auth and user types
 export interface UserProfile {

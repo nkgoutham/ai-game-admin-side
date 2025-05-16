@@ -49,7 +49,7 @@ const defaultGameState: GameState = {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [view, setView] = useState<AppView>('upload');
+  const [view, setView] = useState<AppView>('select');
   const [uploadState, setUploadState] = useState<UploadState>(defaultUploadState);
   const [processingState, setProcessingState] = useState<ProcessingState>(defaultProcessingState);
   const [currentChapter, setCurrentChapter] = useState<Chapter | null>(null);
@@ -92,7 +92,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, [gameSession?.id]);
 
   const resetState = () => {
-    setView('upload');
+    setView('select');
     setUploadState(defaultUploadState);
     setProcessingState(defaultProcessingState);
     setCurrentChapter(null);

@@ -153,6 +153,52 @@ export async function saveQuestions(questions: GeneratedQuestion[], topicIdMap: 
 }
 
 /**
+ * Get all chapters from the database
+ */
+export async function getAllChapters() {
+  try {
+    const { data, error } = await supabase
+      .from('chapters')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error getting all chapters:', error);
+    throw new Error('Failed to get chapters from database');
+  }
+}
+
+/**
+ * Get unique grades from chapters
+ */
+export async function getUniqueGrades() {
+  try {
+    const { data, error } = await supabase
+      .from('chapters')
+      .select('grade');
+    
+    if (error) throw error;
+    
+    // Extract unique grades
+    const grades = [...new Set(data.map(item => item.grade))];
+    
+    // Sort grades properly (K, 1, 2, ..., 12)
+    grades.sort((a, b) => {
+      if (a === 'K') return -1;
+      if (b === 'K') return 1;
+      return parseInt(a) - parseInt(b);
+    });
+    
+    return grades;
+  } catch (error) {
+    console.error('Error getting unique grades:', error);
+    throw new Error('Failed to get grades from database');
+  }
+}
+
+/**
  * Get or create the default game session
  */
 export async function getOrCreateDefaultGameSession(chapterId?: string, teacherName: string = 'Anonymous') {
@@ -261,6 +307,25 @@ export async function getChapterById(chapterId: string) {
   } catch (error) {
     console.error('Error getting chapter:', error);
     throw new Error('Failed to get chapter from database');
+  }
+}
+
+/**
+ * Get chapters by grade
+ */
+export async function getChaptersByGrade(grade: string) {
+  try {
+    const { data, error } = await supabase
+      .from('chapters')
+      .select('*')
+      .eq('grade', grade)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error getting chapters by grade:', error);
+    throw new Error('Failed to get chapters by grade from database');
   }
 }
 

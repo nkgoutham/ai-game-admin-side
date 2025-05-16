@@ -2,7 +2,7 @@
  * Step Indicator component for Ether Excel
  */
 import React from 'react';
-import { Check, Upload, Brain, Activity, Rocket } from 'lucide-react';
+import { Check, BookOpen, Upload, Brain, Activity, Rocket } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { AppView } from '../../types';
 
@@ -16,6 +16,7 @@ const StepIndicator: React.FC = () => {
   const { view, setView } = useAppContext();
   
   const steps: StepInfo[] = [
+    { name: 'Select', icon: <BookOpen className="w-5 h-5" />, view: 'select' },
     { name: 'Upload', icon: <Upload className="w-5 h-5" />, view: 'upload' },
     { name: 'Process', icon: <Brain className="w-5 h-5" />, view: 'processing' },
     { name: 'Review', icon: <Activity className="w-5 h-5" />, view: 'review' },
@@ -33,7 +34,7 @@ const StepIndicator: React.FC = () => {
   };
   
   return (
-    <div className="w-full max-w-3xl mx-auto my-8">
+    <div className="w-full max-w-4xl mx-auto my-8">
       <div className="flex items-center justify-between">
         {steps.map((step, index) => {
           // Determine step status
