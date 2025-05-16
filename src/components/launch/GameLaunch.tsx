@@ -12,23 +12,59 @@ import {
   Copy, 
   Share2,
   UserPlus,
-  ArrowLeft
+  ArrowLeft,
+  Eye
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../ui/Card';
 import Button from '../ui/Button';
 import { useAppContext } from '../../context/AppContext';
-import { createGameSession } from '../../services/database';
+import { createGameSession, getOrCreateDefaultGameSession, updateGameSessionStatus } from '../../services/database';
 
 const GameLaunch: React.FC = () => {
-  const { currentChapter, topics, resetState, setView } = useAppContext();
-  const [gameCode] = useState(generateGameCode());
+  const { 
+    currentChapter, 
+    topics, 
+    resetState, 
+    setView, 
+    gameSession, 
+    setGameSession,
+    gameState
+  } = useAppContext();
+  
   const [launchState, setLaunchState] = useState<'ready' | 'starting' | 'active'>('ready');
   const [copied, setCopied] = useState(false);
   const [timeLimit, setTimeLimit] = useState(5);
-  const [gameSession, setGameSession] = useState<any>(null);
+  
+  // Initialize or fetch game session on component mount
+  useEffect(() => {
+    if (!gameSession) {
+      initializeGameSession();
+    } else if (gameSession.status === 'in_progress') {
+      setLaunchState('active');
+    }
+  }, []);
+
+  // Initialize a game session
+  const initializeGameSession = async () => {
+    try {
+      const session = await getOrCreateDefaultGameSession(
+        currentChapter?.id, 
+        'Anonymous Teacher'
+      );
+      setGameSession(session);
+      
+      if (session.status === 'in_progress') {
+        setLaunchState('active');
+      }
+    } catch (error) {
+      console.error('Error initializing game session:', error);
+    }
+  };
   
   const handleCopyCode = () => {
-    navigator.clipboard.writeText(gameCode);
+    if (!gameSession) return;
+    
+    navigator.clipboard.writeText(gameSession.game_code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -37,9 +73,12 @@ const GameLaunch: React.FC = () => {
     setLaunchState('starting');
     
     try {
-      // Create a game session in the database
-      const session = await createGameSession(currentChapter?.id || '', 'Anonymous Teacher');
-      setGameSession(session);
+      // Create a game session in the database if needed
+      let session = gameSession;
+      if (!session) {
+        session = await createGameSession(currentChapter?.id || '', 'Anonymous Teacher');
+        setGameSession(session);
+      }
       
       setTimeout(() => {
         setLaunchState('active');
@@ -55,19 +94,34 @@ const GameLaunch: React.FC = () => {
     resetState();
   };
 
+  const handleViewLobby = () => {
+    setView('lobby');
+  };
+
   const handleBackToReview = () => {
     setView('review');
   };
   
-  // Generate a random 6-character game code
-  function generateGameCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Omit confusing characters
-    let code = '';
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
+  // Handle start game
+  const handleStartGame = async () => {
+    if (!gameSession) {
+      alert('No active game session found');
+      return;
     }
-    return code;
-  }
+    
+    try {
+      // Update game session status to in_progress
+      await updateGameSessionStatus(gameSession.id, 'in_progress');
+      
+      // Set launch state to active if not already
+      if (launchState !== 'active') {
+        setLaunchState('active');
+      }
+    } catch (error) {
+      console.error('Error starting game:', error);
+      alert('Failed to start game. Please try again.');
+    }
+  };
   
   return (
     <div className="max-w-4xl mx-auto">
@@ -132,34 +186,44 @@ const GameLaunch: React.FC = () => {
                   </div>
                 </div>
                 
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-medium">Game Access Code</h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleCopyCode}
-                      icon={copied ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                    >
-                      {copied ? 'Copied!' : 'Copy'}
-                    </Button>
-                  </div>
-                  
-                  <div className="flex justify-center">
-                    <div className="bg-[#EEF4FF] px-6 py-3 rounded-lg">
-                      <span className="text-2xl font-bold tracking-wider text-[#3A7AFE]">
-                        {gameCode}
-                      </span>
+                {gameSession && (
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium">Game Access Code</h3>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCopyCode}
+                        icon={copied ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                      >
+                        {copied ? 'Copied!' : 'Copy'}
+                      </Button>
                     </div>
+                    
+                    <div className="flex justify-center">
+                      <div className="bg-[#EEF4FF] px-6 py-3 rounded-lg">
+                        <span className="text-2xl font-bold tracking-wider text-[#3A7AFE]">
+                          {gameSession.game_code}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <p className="text-xs text-center text-gray-500 mt-2">
+                      Students can join using this code at play.etherexcel.edu
+                    </p>
                   </div>
-                  
-                  <p className="text-xs text-center text-gray-500 mt-2">
-                    Students can join using this code at play.etherexcel.edu
-                  </p>
-                </div>
+                )}
               </div>
               
-              <div className="flex justify-center">
+              <div className="flex justify-center gap-4">
+                <Button 
+                  size="lg"
+                  onClick={handleViewLobby}
+                  icon={<Eye className="w-5 h-5 mr-1" />}
+                  variant="outline"
+                >
+                  View Lobby
+                </Button>
                 <Button 
                   size="lg"
                   onClick={handleLaunch}
@@ -196,65 +260,36 @@ const GameLaunch: React.FC = () => {
                 <div>
                   <h3 className="font-medium text-green-800">Game Session Active</h3>
                   <p className="text-sm text-green-600">
-                    Your game is now running. Students can join with code {gameCode}.
+                    Your game is now running. Students can join with code {gameSession?.game_code}.
                   </p>
                 </div>
               </div>
               
               <div className="bg-white p-5 rounded-lg border border-gray-200">
-                <h3 className="text-lg font-medium mb-4">Student Session</h3>
-                
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-medium">Students Joined</p>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      icon={<UserPlus className="w-4 h-4" />}
-                    >
-                      Add Student
-                    </Button>
-                  </div>
-                  
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Student
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        <tr>
-                          <td colSpan={2} className="px-4 py-4 text-center text-sm text-gray-500">
-                            No students have joined yet
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                <div className="flex justify-between mb-4">
+                  <h3 className="text-lg font-medium">Student Session</h3>
+                  <Button 
+                    onClick={handleViewLobby}
+                    icon={<Eye className="w-4 h-4 mr-1" />}
+                    size="sm"
+                  >
+                    View Lobby
+                  </Button>
                 </div>
                 
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-medium">Current Progress</p>
-                    <p className="text-sm text-gray-500">Topic 1 of {topics.length}</p>
-                  </div>
-                  
-                  <div className="bg-[#EEF4FF] p-3 rounded-lg">
-                    <h4 className="text-sm font-medium">{topics[0]?.topic_name}</h4>
-                    <div className="flex justify-between text-xs text-gray-500 mt-1 mb-2">
-                      <span>Time remaining: {timeLimit}:00</span>
-                      <span>{topics[0] ? '0/0 students answered' : 'Waiting to start'}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-[#FFC857] h-2 rounded-full" style={{width: '0%'}}></div>
-                    </div>
-                  </div>
+                <div className="bg-[#EEF4FF] p-3 rounded-lg">
+                  <h4 className="text-sm font-medium">Ready to Start Game</h4>
+                  <p className="text-xs text-gray-500 mt-1 mb-2">
+                    Click the button below when all students have joined
+                  </p>
+                  <Button 
+                    onClick={handleStartGame}
+                    icon={<Play className="w-4 h-4 mr-1" />}
+                    fullWidth
+                    disabled={gameSession?.status === 'in_progress'}
+                  >
+                    {gameSession?.status === 'in_progress' ? 'Game Started' : 'Start Game Now'}
+                  </Button>
                 </div>
               </div>
               

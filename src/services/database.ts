@@ -153,6 +153,60 @@ export async function saveQuestions(questions: GeneratedQuestion[], topicIdMap: 
 }
 
 /**
+ * Get or create the default game session
+ */
+export async function getOrCreateDefaultGameSession(chapterId?: string, teacherName: string = 'Anonymous') {
+  try {
+    // First, check if we have any active game session
+    const { data: existingSessions, error: fetchError } = await supabase
+      .from('game_sessions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1);
+    
+    if (fetchError) {
+      console.error('Error fetching game sessions:', fetchError);
+      throw fetchError;
+    }
+    
+    // If we have an existing session, return it
+    if (existingSessions && existingSessions.length > 0) {
+      console.log('Using existing game session:', existingSessions[0].id);
+      return existingSessions[0];
+    }
+    
+    // No session exists, create a new one
+    // Generate a random game code
+    const gameCode = generateGameCode();
+    
+    // If no chapterId is provided, we'll add a placeholder
+    const defaultChapterId = chapterId || 'pending';
+    
+    const { data, error } = await supabase
+      .from('game_sessions')
+      .insert({
+        chapter_id: defaultChapterId,
+        teacher_name: teacherName,
+        status: 'not_started',
+        game_code: gameCode
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error creating default game session:', error);
+      throw error;
+    }
+    
+    console.log('Created new default game session:', data.id);
+    return data;
+  } catch (error) {
+    console.error('Error with game session:', error);
+    throw new Error('Failed to get or create game session');
+  }
+}
+
+/**
  * Create a new game session
  */
 export async function createGameSession(chapterId: string, teacherName: string = 'Anonymous') {
@@ -260,6 +314,24 @@ export async function getStudentsBySessionId(sessionId: string) {
     return data;
   } catch (error) {
     console.error('Error getting students:', error);
+    throw new Error('Failed to get students from database');
+  }
+}
+
+/**
+ * Get all students in the system
+ */
+export async function getAllStudents() {
+  try {
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+      .order('joined_at', { ascending: false });
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error getting all students:', error);
     throw new Error('Failed to get students from database');
   }
 }

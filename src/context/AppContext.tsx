@@ -2,8 +2,9 @@
  * App Context Provider for Ether Excel
  * Manages global state for the application
  */
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { AppView, Chapter, ProcessingState, Question, Topic, UploadState } from '../types';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { AppView, Chapter, ProcessingState, Question, Topic, UploadState, GameState, GameSession } from '../types';
+import { supabase } from '../lib/supabase';
 
 interface AppContextType {
   view: AppView;
@@ -18,6 +19,10 @@ interface AppContextType {
   setTopics: (topics: Topic[]) => void;
   questions: Record<string, Question[]>;
   setQuestions: (questions: Record<string, Question[]>) => void;
+  gameState: GameState;
+  setGameState: (state: GameState) => void;
+  gameSession: GameSession | null;
+  setGameSession: (session: GameSession | null) => void;
   resetState: () => void;
 }
 
@@ -33,6 +38,14 @@ const defaultProcessingState: ProcessingState = {
   error: '',
 };
 
+const defaultGameState: GameState = {
+  status: 'waiting',
+  countdown: 3,
+  currentTopic: null,
+  currentQuestion: null,
+  sessionId: null
+};
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
@@ -42,6 +55,40 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [currentChapter, setCurrentChapter] = useState<Chapter | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [questions, setQuestions] = useState<Record<string, Question[]>>({});
+  const [gameState, setGameState] = useState<GameState>(defaultGameState);
+  const [gameSession, setGameSession] = useState<GameSession | null>(null);
+
+  // Set up real-time subscription for game status changes
+  useEffect(() => {
+    if (!gameSession) return;
+
+    // Subscribe to game session changes
+    const subscription = supabase
+      .channel(`game_session_${gameSession.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'game_sessions',
+        filter: `id=eq.${gameSession.id}`
+      }, (payload) => {
+        console.log('Game session updated:', payload);
+        setGameSession(payload.new as GameSession);
+        
+        // Update game state if status changes
+        const newStatus = payload.new.status;
+        if (newStatus === 'in_progress' && gameState.status === 'waiting') {
+          setGameState({
+            ...gameState,
+            status: 'countdown',
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [gameSession?.id]);
 
   const resetState = () => {
     setView('upload');
@@ -50,6 +97,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setCurrentChapter(null);
     setTopics([]);
     setQuestions({});
+    setGameState(defaultGameState);
+    setGameSession(null);
   };
 
   return (
@@ -67,6 +116,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setTopics,
         questions,
         setQuestions,
+        gameState,
+        setGameState,
+        gameSession,
+        setGameSession,
         resetState,
       }}
     >

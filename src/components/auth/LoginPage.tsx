@@ -15,7 +15,7 @@ const LoginPage: React.FC = () => {
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const { signIn, signUp, joinAsPlayer, authState } = useAuth();
+  const { signIn, joinAsPlayer, authState } = useAuth();
   
   const handleTeacherLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,7 +177,7 @@ const LoginPage: React.FC = () => {
                     isLoading={isSubmitting}
                     disabled={isSubmitting}
                   >
-                    Join Lobby
+                    Join Game
                   </Button>
                 </div>
               </form>
@@ -188,7 +188,7 @@ const LoginPage: React.FC = () => {
             <p className="text-xs text-gray-500 text-center w-full">
               {activeTab === 'teacher' 
                 ? 'Sign in to manage your games and review student progress'
-                : 'Enter your name to join the game lobby'}
+                : 'Enter your name to join the game'}
             </p>
           </CardFooter>
         </Card>
