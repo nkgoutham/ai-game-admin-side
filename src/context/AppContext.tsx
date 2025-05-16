@@ -3,7 +3,7 @@
  * Manages global state for the application
  */
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { AppView, Chapter, ProcessingState, Question, Topic, UploadState, GameState } from '../types';
+import { AppView, Chapter, ProcessingState, Question, Topic, UploadState, GameState, GameSession } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface AppContextType {
@@ -21,8 +21,8 @@ interface AppContextType {
   setQuestions: (questions: Record<string, Question[]>) => void;
   gameState: GameState;
   setGameState: (state: GameState) => void;
-  gameSession: any;
-  setGameSession: (session: any) => void;
+  gameSession: GameSession | null;
+  setGameSession: (session: GameSession | null) => void;
   resetState: () => void;
 }
 
@@ -40,7 +40,7 @@ const defaultProcessingState: ProcessingState = {
 
 const defaultGameState: GameState = {
   status: 'waiting',
-  countdown: 5,
+  countdown: 3,
   currentTopic: null,
   currentQuestion: null,
   sessionId: null
@@ -56,7 +56,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [questions, setQuestions] = useState<Record<string, Question[]>>({});
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
-  const [gameSession, setGameSession] = useState<any>(null);
+  const [gameSession, setGameSession] = useState<GameSession | null>(null);
 
   // Set up real-time subscription for student status changes
   useEffect(() => {
@@ -80,22 +80,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       })
       .subscribe();
 
-    // Subscribe to responses table for real-time updates
-    const responsesSubscription = supabase
-      .channel('responses_channel')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'responses',
-      }, (payload) => {
-        console.log('New response submitted:', payload);
-        // We could update the game state here if needed
-      })
-      .subscribe();
-
     return () => {
       supabase.removeChannel(subscription);
-      supabase.removeChannel(responsesSubscription);
     };
   }, [gameState.status]);
 
