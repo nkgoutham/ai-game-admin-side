@@ -12,12 +12,14 @@ import {
   Share2,
   ArrowLeft,
   Eye,
-  RefreshCw
+  RefreshCw,
+  Trash2,
+  AlertCircle
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../ui/Card';
 import Button from '../ui/Button';
 import { useAppContext } from '../../context/AppContext';
-import { getAllStudents, updateStudentStatus } from '../../services/database';
+import { getAllStudents, updateStudentStatus, removeStudent } from '../../services/database';
 import { Student } from '../../types';
 
 const GameLaunch: React.FC = () => {
@@ -27,7 +29,8 @@ const GameLaunch: React.FC = () => {
     resetState, 
     setView, 
     gameState,
-    setGameState
+    setGameState,
+    gameSession
   } = useAppContext();
   
   const [launchState, setLaunchState] = useState<'ready' | 'starting' | 'active'>('ready');
@@ -35,6 +38,8 @@ const GameLaunch: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [timeLimit, setTimeLimit] = useState(5);
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [removingStudent, setRemovingStudent] = useState<string | null>(null);
   
   // Initialize or fetch students on component mount
   useEffect(() => {
@@ -91,6 +96,43 @@ const GameLaunch: React.FC = () => {
 
   const handleBackToReview = () => {
     setView('review');
+  };
+  
+  // Handle student selection for potential removal
+  const toggleStudentSelection = (studentId: string) => {
+    if (selectedStudents.includes(studentId)) {
+      setSelectedStudents(selectedStudents.filter(id => id !== studentId));
+    } else {
+      setSelectedStudents([...selectedStudents, studentId]);
+    }
+  };
+  
+  // Handle removing selected students
+  const handleRemoveSelectedStudents = async () => {
+    if (selectedStudents.length === 0) return;
+    
+    if (window.confirm(`Are you sure you want to remove ${selectedStudents.length} student(s) from the game?`)) {
+      try {
+        setLoading(true);
+        
+        // Remove each selected student
+        for (const studentId of selectedStudents) {
+          setRemovingStudent(studentId);
+          await removeStudent(studentId);
+        }
+        
+        // Reset selections and refresh student list
+        setSelectedStudents([]);
+        await fetchStudents();
+        setRemovingStudent(null);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error removing students:', error);
+        setLoading(false);
+        setRemovingStudent(null);
+        alert('Failed to remove some students. Please try again.');
+      }
+    }
   };
   
   // Handle start game
@@ -179,19 +221,33 @@ const GameLaunch: React.FC = () => {
                   </div>
                 </div>
                 
-                {/* Students in Lobby section - replacing Game Access Code */}
+                {/* Students in Lobby section with selection and removal */}
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-medium">Students in Lobby</h3>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={handleRefresh}
-                      isLoading={refreshing}
-                      icon={<RefreshCw className="w-4 h-4" />}
-                    >
-                      Refresh
-                    </Button>
+                    <div className="flex space-x-2">
+                      {selectedStudents.length > 0 && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={handleRemoveSelectedStudents}
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                          isLoading={!!removingStudent}
+                          icon={<Trash2 className="w-4 h-4" />}
+                        >
+                          Remove {selectedStudents.length} Selected
+                        </Button>
+                      )}
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={handleRefresh}
+                        isLoading={refreshing}
+                        icon={<RefreshCw className="w-4 h-4" />}
+                      >
+                        Refresh
+                      </Button>
+                    </div>
                   </div>
                   
                   <div className="border border-gray-200 rounded-lg overflow-hidden mb-2">
@@ -206,6 +262,9 @@ const GameLaunch: React.FC = () => {
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Select
+                              </th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 #
                               </th>
                               <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -218,14 +277,28 @@ const GameLaunch: React.FC = () => {
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
                             {students.map((student, index) => (
-                              <tr key={student.id}>
+                              <tr 
+                                key={student.id} 
+                                className={selectedStudents.includes(student.id) ? "bg-blue-50" : ""}
+                              >
+                                <td className="px-3 py-2 whitespace-nowrap">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={selectedStudents.includes(student.id)}
+                                    onChange={() => toggleStudentSelection(student.id)}
+                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                  />
+                                </td>
                                 <td className="px-3 py-2 whitespace-nowrap">
                                   <div className="w-6 h-6 rounded-full bg-[#3A7AFE] text-white flex items-center justify-center text-xs">
                                     {index + 1}
                                   </div>
                                 </td>
                                 <td className="px-3 py-2 whitespace-nowrap">
-                                  <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {student.name}
+                                    {removingStudent === student.id && <span className="ml-2 text-red-500 text-xs">Removing...</span>}
+                                  </div>
                                 </td>
                                 <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
                                   {new Date(student.joined_at).toLocaleTimeString()}
@@ -242,9 +315,12 @@ const GameLaunch: React.FC = () => {
                     )}
                   </div>
                   
-                  <p className="text-xs text-center text-gray-500">
-                    Students are automatically added when they join the classroom
-                  </p>
+                  <div className="text-xs text-gray-500 flex items-center justify-between">
+                    <p>Students are automatically added when they join the classroom</p>
+                    <p className="text-blue-600">
+                      {selectedStudents.length > 0 ? `${selectedStudents.length} students selected` : ''}
+                    </p>
+                  </div>
                 </div>
               </div>
               
@@ -301,14 +377,28 @@ const GameLaunch: React.FC = () => {
               <div className="bg-white p-5 rounded-lg border border-gray-200">
                 <div className="flex justify-between mb-4">
                   <h3 className="text-lg font-medium">Player Lobby</h3>
-                  <Button 
-                    onClick={handleRefresh}
-                    icon={<RefreshCw className="w-4 h-4 mr-1" />}
-                    size="sm"
-                    isLoading={refreshing}
-                  >
-                    Refresh
-                  </Button>
+                  <div className="flex space-x-2">
+                    {selectedStudents.length > 0 && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={handleRemoveSelectedStudents}
+                        className="text-red-600 border-red-200 hover:bg-red-50"
+                        isLoading={!!removingStudent}
+                        icon={<Trash2 className="w-4 h-4" />}
+                      >
+                        Remove {selectedStudents.length}
+                      </Button>
+                    )}
+                    <Button 
+                      onClick={handleRefresh}
+                      icon={<RefreshCw className="w-4 h-4 mr-1" />}
+                      size="sm"
+                      isLoading={refreshing}
+                    >
+                      Refresh
+                    </Button>
+                  </div>
                 </div>
                 
                 <div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
@@ -323,6 +413,9 @@ const GameLaunch: React.FC = () => {
                         <thead className="bg-gray-50">
                           <tr>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Select
+                            </th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               #
                             </th>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -335,14 +428,28 @@ const GameLaunch: React.FC = () => {
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                           {students.map((student, index) => (
-                            <tr key={student.id}>
+                            <tr 
+                              key={student.id}
+                              className={selectedStudents.includes(student.id) ? "bg-blue-50" : ""}
+                            >
+                              <td className="px-3 py-2 whitespace-nowrap">
+                                <input 
+                                  type="checkbox" 
+                                  checked={selectedStudents.includes(student.id)}
+                                  onChange={() => toggleStudentSelection(student.id)}
+                                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                />
+                              </td>
                               <td className="px-3 py-2 whitespace-nowrap">
                                 <div className="w-6 h-6 rounded-full bg-[#3A7AFE] text-white flex items-center justify-center text-xs">
                                   {index + 1}
                                 </div>
                               </td>
                               <td className="px-3 py-2 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                                <div className="text-sm font-medium text-gray-900">
+                                  {student.name}
+                                  {removingStudent === student.id && <span className="ml-2 text-red-500 text-xs">Removing...</span>}
+                                </div>
                               </td>
                               <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
                                 {new Date(student.joined_at).toLocaleTimeString()}

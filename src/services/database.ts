@@ -154,23 +154,54 @@ export async function saveQuestions(questions: GeneratedQuestion[], topicIdMap: 
 
 /**
  * Get or create a default game session
- * Modified to handle the case where game_sessions table might not exist yet
  */
 export async function getOrCreateDefaultGameSession(chapterId?: string, teacherName?: string) {
   try {
     console.log('Getting or creating default game session');
     
-    // Create a mock session if table doesn't exist or there's an error
-    // This is a temporary solution until the table is created by the migration
-    return {
-      id: "temporary-session-id",
-      chapter_id: chapterId || null,
-      teacher_name: teacherName || 'Anonymous Teacher',
-      status: 'not_started',
-      game_code: 'TEMP12',
-      started_at: new Date().toISOString(),
-      ended_at: null
-    };
+    // Check if an active session exists
+    const { data: existingSessions, error: fetchError } = await supabase
+      .from('game_sessions')
+      .select('*')
+      .eq('status', 'not_started')
+      .order('created_at', { ascending: false })
+      .limit(1);
+    
+    if (fetchError) {
+      console.error('Error fetching existing sessions:', fetchError);
+      throw fetchError;
+    }
+    
+    // If a session exists, return it
+    if (existingSessions && existingSessions.length > 0) {
+      console.log('Found existing game session:', existingSessions[0]);
+      return existingSessions[0];
+    }
+    
+    // Generate a random 6-character game code
+    const gameCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    
+    // Create a new session
+    const { data, error } = await supabase
+      .from('game_sessions')
+      .insert({
+        chapter_id: chapterId,
+        teacher_name: teacherName || 'Anonymous Teacher',
+        status: 'not_started',
+        game_code: gameCode,
+        started_at: new Date().toISOString(),
+        banned_students: []
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error creating game session:', error);
+      throw error;
+    }
+    
+    console.log('Created new game session:', data);
+    return data;
   } catch (error) {
     console.error('Error in getOrCreateDefaultGameSession:', error);
     throw new Error('Failed to get or create game session');
@@ -323,7 +354,7 @@ export async function addStudentToSession(name: string) {
     const studentObj = {
       name,
       joined_at: new Date().toISOString(),
-      status: 'waiting' // Now the database has this column
+      status: 'waiting'
     };
     
     const { data, error } = await supabase
@@ -357,6 +388,62 @@ export async function updateStudentStatus(studentId: string, status: 'waiting' |
   } catch (error) {
     console.error('Error updating student status:', error);
     throw new Error('Failed to update student status');
+  }
+}
+
+/**
+ * Remove a student from the game
+ */
+export async function removeStudent(studentId: string) {
+  try {
+    const { error } = await supabase
+      .from('students')
+      .delete()
+      .eq('id', studentId);
+    
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    console.error('Error removing student:', error);
+    throw new Error('Failed to remove student from the game');
+  }
+}
+
+/**
+ * Ban a student from the current game session
+ */
+export async function banStudentFromSession(sessionId: string, studentId: string) {
+  try {
+    // First get current banned list
+    const { data: session, error: fetchError } = await supabase
+      .from('game_sessions')
+      .select('banned_students')
+      .eq('id', sessionId)
+      .single();
+    
+    if (fetchError) throw fetchError;
+    
+    // Update banned students array
+    const bannedStudents = session.banned_students || [];
+    if (!bannedStudents.includes(studentId)) {
+      bannedStudents.push(studentId);
+    }
+    
+    // Update the session
+    const { error: updateError } = await supabase
+      .from('game_sessions')
+      .update({ banned_students: bannedStudents })
+      .eq('id', sessionId);
+    
+    if (updateError) throw updateError;
+    
+    // Now remove the student
+    await removeStudent(studentId);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error banning student from session:', error);
+    throw new Error('Failed to ban student from game session');
   }
 }
 

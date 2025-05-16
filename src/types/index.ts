@@ -83,6 +83,7 @@ export interface GameSession {
   started_at: string;
   ended_at?: string | null;
   created_at?: string;
+  banned_students?: string[];
 }
 
 // Game state types
