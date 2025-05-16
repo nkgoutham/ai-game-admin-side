@@ -21,6 +21,8 @@ interface AppContextType {
   setQuestions: (questions: Record<string, Question[]>) => void;
   gameState: GameState;
   setGameState: (state: GameState) => void;
+  gameSession: any;
+  setGameSession: (session: any) => void;
   resetState: () => void;
 }
 
@@ -38,7 +40,7 @@ const defaultProcessingState: ProcessingState = {
 
 const defaultGameState: GameState = {
   status: 'waiting',
-  countdown: 3,
+  countdown: 5,
   currentTopic: null,
   currentQuestion: null,
   sessionId: null
@@ -54,6 +56,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [questions, setQuestions] = useState<Record<string, Question[]>>({});
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
+  const [gameSession, setGameSession] = useState<any>(null);
 
   // Set up real-time subscription for student status changes
   useEffect(() => {
@@ -77,8 +80,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       })
       .subscribe();
 
+    // Subscribe to responses table for real-time updates
+    const responsesSubscription = supabase
+      .channel('responses_channel')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'responses',
+      }, (payload) => {
+        console.log('New response submitted:', payload);
+        // We could update the game state here if needed
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(subscription);
+      supabase.removeChannel(responsesSubscription);
     };
   }, [gameState.status]);
 
@@ -90,6 +107,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setTopics([]);
     setQuestions({});
     setGameState(defaultGameState);
+    setGameSession(null);
   };
 
   return (
@@ -109,6 +127,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setQuestions,
         gameState,
         setGameState,
+        gameSession,
+        setGameSession,
         resetState,
       }}
     >

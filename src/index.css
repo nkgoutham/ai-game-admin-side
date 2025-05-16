@@ -10,3 +10,38 @@
 .animate-fadeIn {
   animation: fadeIn 0.5s ease-in-out;
 }
+
+/* Make option buttons more tappable for mobile */
+@media (max-width: 768px) {
+  .option-button {
+    min-height: 60px;
+  }
+}
+
+/* Prevent unwanted interactions during game */
+.game-active {
+  user-select: none;
+  touch-action: manipulation;
+}
+
+/* Countdown animation */
+@keyframes countdown {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.animate-countdown {
+  animation: countdown 1s ease-in-out infinite;
+}
+
+/* Response animations */
+@keyframes correctAnswer {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.animate-correct {
+  animation: correctAnswer 0.5s ease-in-out;
+}

@@ -7,7 +7,7 @@ import { Users, ArrowLeft, RefreshCw, Award, CheckSquare, AlignJustify } from 'l
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../ui/Card';
 import Button from '../ui/Button';
 import { useAppContext } from '../../context/AppContext';
-import { getAllStudents, getOrCreateDefaultGameSession } from '../../services/database';
+import { getAllStudents, getOrCreateDefaultGameSession, getStudentResponses } from '../../services/database';
 import { Student, Topic } from '../../types';
 
 const LobbyView: React.FC = () => {
@@ -22,9 +22,10 @@ const LobbyView: React.FC = () => {
     currentQuestion: number;
     correctAnswers: number;
     score: number;
+    responses?: any[];
   }
   
-  // Initialize stats for display purposes (in real app, would come from database)
+  // Initialize stats for display purposes
   const [studentStats, setStudentStats] = useState<StudentWithStats[]>([]);
   
   // Fetch students on load and set up polling
@@ -44,18 +45,41 @@ const LobbyView: React.FC = () => {
   
   // Update student stats whenever students array changes
   useEffect(() => {
-    // Create dummy stats for demonstration
-    const stats = students.map(student => ({
-      ...student,
-      currentQuestion: Math.floor(Math.random() * 5) + 1, // Random for demo
-      correctAnswers: Math.floor(Math.random() * 4),      // Random for demo
-      score: Math.floor(Math.random() * 100)              // Random for demo
-    }));
+    const fetchStudentStats = async () => {
+      try {
+        const stats: StudentWithStats[] = [];
+        
+        for (const student of students) {
+          // Fetch actual student responses from database
+          const responses = await getStudentResponses(student.id);
+          
+          // Calculate correct answers
+          const correctAnswers = responses.filter(r => r.is_correct).length;
+          
+          // Calculate score (each correct answer is worth 100 points)
+          const score = correctAnswers * 100;
+          
+          stats.push({
+            ...student,
+            currentQuestion: responses.length, // Current progress
+            correctAnswers,
+            score,
+            responses
+          });
+        }
+        
+        // Sort by score descending
+        stats.sort((a, b) => b.score - a.score);
+        
+        setStudentStats(stats);
+      } catch (error) {
+        console.error('Error fetching student stats:', error);
+      }
+    };
     
-    // Sort by score descending
-    stats.sort((a, b) => b.score - a.score);
-    
-    setStudentStats(stats);
+    if (students.length > 0) {
+      fetchStudentStats();
+    }
   }, [students]);
   
   // Initialize a game session if needed
@@ -264,7 +288,7 @@ const LobbyView: React.FC = () => {
                                   <div className="text-sm font-medium text-gray-900">{student.name}</div>
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                  {student.currentQuestion} / {currentTopicQuestions.length}
+                                  {student.currentQuestion} / {getTotalQuestions()}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                                   {student.correctAnswers}
@@ -297,6 +321,14 @@ const LobbyView: React.FC = () => {
       </Card>
     </div>
   );
+};
+
+// Helper function to get total questions across all topics
+const getTotalQuestions = () => {
+  const { topics, questions } = useAppContext();
+  return topics.reduce((total, topic) => {
+    return total + (questions[topic.id]?.length || 0);
+  }, 0);
 };
 
 export default LobbyView;
