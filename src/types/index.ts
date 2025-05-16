@@ -50,3 +50,34 @@ export interface ProcessingState {
 }
 
 export type AppView = 'upload' | 'processing' | 'review' | 'launch';
+
+// Auth and user types
+export interface UserProfile {
+  id: string;
+  role: 'teacher' | 'player';
+  display_name: string;
+  created_at?: string;
+}
+
+export interface AuthState {
+  user: UserProfile | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+export interface Student {
+  id: string;
+  name: string;
+  session_id: string;
+  joined_at: string;
+}
+
+export interface GameSession {
+  id: string;
+  chapter_id: string;
+  teacher_name: string;
+  started_at: string;
+  ended_at: string | null;
+  current_topic_id: string | null;
+  status: 'not_started' | 'in_progress' | 'completed';
+}

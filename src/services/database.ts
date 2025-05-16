@@ -92,12 +92,16 @@ export async function saveQuestions(questions: GeneratedQuestion[], topicIdMap: 
  */
 export async function createGameSession(chapterId: string, teacherName: string = 'Anonymous') {
   try {
+    // Generate a random game code
+    const gameCode = generateGameCode();
+    
     const { data, error } = await supabase
       .from('game_sessions')
       .insert({
         chapter_id: chapterId,
         teacher_name: teacherName,
-        status: 'not_started'
+        status: 'not_started',
+        game_code: gameCode
       })
       .select()
       .single();
@@ -108,6 +112,18 @@ export async function createGameSession(chapterId: string, teacherName: string =
     console.error('Error creating game session:', error);
     throw new Error('Failed to create game session');
   }
+}
+
+/**
+ * Generate a random 6-character game code
+ */
+function generateGameCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Omit confusing characters
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
 }
 
 /**
@@ -268,6 +284,43 @@ export async function setCurrentTopic(sessionId: string, topicId: string) {
   } catch (error) {
     console.error('Error setting current topic:', error);
     throw new Error('Failed to set current topic for game session');
+  }
+}
+
+/**
+ * Get active game sessions
+ */
+export async function getActiveGameSessions() {
+  try {
+    const { data, error } = await supabase
+      .from('game_sessions')
+      .select('*')
+      .eq('status', 'in_progress');
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error getting active game sessions:', error);
+    throw new Error('Failed to get active game sessions');
+  }
+}
+
+/**
+ * Get game session by code
+ */
+export async function getGameSessionByCode(gameCode: string) {
+  try {
+    const { data, error } = await supabase
+      .from('game_sessions')
+      .select('*')
+      .eq('game_code', gameCode)
+      .single();
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error getting game session by code:', error);
+    throw new Error('Failed to get game session');
   }
 }
 
