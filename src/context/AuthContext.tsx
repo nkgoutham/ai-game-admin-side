@@ -29,6 +29,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Load auth state on mount
   useEffect(() => {
+    // Check if there's a force logout flag in local storage
+    const forceLogout = localStorage.getItem('force_logout');
+    
+    // If force logout is set, clear any session first
+    if (forceLogout === 'true') {
+      localStorage.removeItem('force_logout');
+      supabase.auth.signOut().then(() => {
+        setAuthState({ user: null, isLoading: false, error: null });
+      });
+      return;
+    }
+    
     const loadUser = async () => {
       try {
         // Get current session
@@ -145,6 +157,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signOut = async () => {
     try {
       setAuthState({ ...authState, isLoading: true });
+      
+      // Set a flag to ensure we force logout on next page load
+      localStorage.setItem('force_logout', 'true');
       
       const { error } = await supabase.auth.signOut();
       

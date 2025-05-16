@@ -2,14 +2,16 @@
  * Header component for Ether Excel
  */
 import React, { useState } from 'react';
-import { BookOpen, Trash2 } from 'lucide-react';
+import { BookOpen, Trash2, LogOut } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { clearAllContent } from '../../services/database';
 import Button from '../ui/Button';
+import { useAuth } from '../../context/AuthContext';
 
 const Header: React.FC = () => {
   const { currentChapter, resetState } = useAppContext();
   const [isClearing, setIsClearing] = useState(false);
+  const { signOut } = useAuth();
 
   const handleClearContent = async () => {
     if (window.confirm('Are you sure you want to clear ALL content from the database? This action cannot be undone.')) {
@@ -24,6 +26,14 @@ const Header: React.FC = () => {
       } finally {
         setIsClearing(false);
       }
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
     }
   };
 
@@ -48,6 +58,16 @@ const Header: React.FC = () => {
               </div>
             </div>
           )}
+          
+          {/* Sign Out Button */}
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={handleSignOut}
+            icon={<LogOut className="w-4 h-4" />}
+          >
+            Sign Out
+          </Button>
           
           {/* Clear Content Button (for testing only) */}
           <Button 
