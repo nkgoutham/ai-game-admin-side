@@ -3,7 +3,7 @@
  * Manages global state for the application
  */
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { AppView, Chapter, ProcessingState, Question, Topic, UploadState, GameState, GameSession } from '../types';
+import { AppView, Chapter, ProcessingState, Question, Topic, UploadState, GameState } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface AppContextType {
@@ -21,8 +21,6 @@ interface AppContextType {
   setQuestions: (questions: Record<string, Question[]>) => void;
   gameState: GameState;
   setGameState: (state: GameState) => void;
-  gameSession: GameSession | null;
-  setGameSession: (session: GameSession | null) => void;
   resetState: () => void;
 }
 
@@ -49,39 +47,32 @@ const defaultGameState: GameState = {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [view, setView] = useState<AppView>('upload');
+  const [view, setView] = useState<AppView>('select');
   const [uploadState, setUploadState] = useState<UploadState>(defaultUploadState);
   const [processingState, setProcessingState] = useState<ProcessingState>(defaultProcessingState);
   const [currentChapter, setCurrentChapter] = useState<Chapter | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [questions, setQuestions] = useState<Record<string, Question[]>>({});
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
-  const [gameSession, setGameSession] = useState<GameSession | null>(null);
 
-  // Set up real-time subscription for game status changes
+  // Set up real-time subscription for student status changes
   useEffect(() => {
-    // Subscribe to all game_sessions updates for simplicity
+    // Subscribe to all students table updates
     const subscription = supabase
-      .channel('game_sessions_channel')
+      .channel('students_channel')
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
-        table: 'game_sessions',
+        table: 'students',
       }, (payload) => {
-        console.log('Game session updated:', payload);
+        console.log('Student status updated:', payload);
         
-        // Update local state if it's our current game session
-        if (gameSession && payload.new.id === gameSession.id) {
-          setGameSession(payload.new as GameSession);
-          
-          // Update game state if status changes
-          const newStatus = payload.new.status;
-          if (newStatus === 'in_progress' && gameState.status === 'waiting') {
-            setGameState({
-              ...gameState,
-              status: 'countdown',
-            });
-          }
+        // Handle student status changes here if needed
+        if (payload.new.status === 'playing' && gameState.status === 'waiting') {
+          setGameState({
+            ...gameState,
+            status: 'countdown',
+          });
         }
       })
       .subscribe();
@@ -89,17 +80,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       supabase.removeChannel(subscription);
     };
-  }, [gameSession?.id]);
+  }, [gameState.status]);
 
   const resetState = () => {
-    setView('upload');
+    setView('select');
     setUploadState(defaultUploadState);
     setProcessingState(defaultProcessingState);
     setCurrentChapter(null);
     setTopics([]);
     setQuestions({});
     setGameState(defaultGameState);
-    setGameSession(null);
   };
 
   return (
@@ -119,8 +109,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setQuestions,
         gameState,
         setGameState,
-        gameSession,
-        setGameSession,
         resetState,
       }}
     >

@@ -181,7 +181,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setAuthState({ ...authState, isLoading: true, error: null });
       
-      // Simply add the student without requiring a session ID
+      // Add the student to the database with the updated function
+      // Note: We're no longer using a session ID as that table has been removed
       const student = await addStudentToSession(name);
       
       // Store the student info in local storage

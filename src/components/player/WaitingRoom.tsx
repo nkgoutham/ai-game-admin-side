@@ -3,23 +3,159 @@
  * Student-facing component for waiting to join the game
  */
 import React, { useEffect, useState, useRef } from 'react';
-import { Clock, Users, RefreshCw } from 'lucide-react';
+import { Clock, Users, RefreshCw, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import Button from '../ui/Button';
-import { getAllStudents } from '../../services/database';
-import { Student, GameSession } from '../../types';
+import { getAllStudents, updateStudentStatus } from '../../services/database';
+import { Student, Question, Topic } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useAppContext } from '../../context/AppContext';
 import { supabase } from '../../lib/supabase';
+
+const NarrativeScreen: React.FC<{topic: Topic, onContinue: () => void}> = ({ topic, onContinue }) => {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#EEF4FF] p-4">
+      <Card className="w-full max-w-lg animate-fadeIn">
+        <CardHeader>
+          <CardTitle>{topic.topic_name}</CardTitle>
+          <CardDescription>
+            Introduction to this topic
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+              <p className="text-lg font-medium italic text-center text-gray-700">
+                "{topic.topic_narrative}"
+              </p>
+            </div>
+            
+            <Button 
+              onClick={onContinue}
+              fullWidth
+              size="lg"
+              icon={<ArrowRight className="w-4 h-4 ml-2" />}
+              iconPosition="right"
+            >
+              Begin Questions
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+const QuestionScreen: React.FC<{
+  question: Question, 
+  onAnswer: (option: string) => void,
+  answered: boolean,
+  selectedOption: string | null,
+  isCorrect: boolean | null
+}> = ({ question, onAnswer, answered, selectedOption, isCorrect }) => {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#EEF4FF] p-4">
+      <Card className="w-full max-w-lg">
+        <CardHeader>
+          <CardTitle>Question</CardTitle>
+          <CardDescription>
+            Select the correct option
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+              <p className="text-lg font-medium mb-6">{question.question_stem}</p>
+              
+              <div className="space-y-3">
+                {[
+                  { id: 'A', text: question.option_a },
+                  { id: 'B', text: question.option_b },
+                  { id: 'C', text: question.option_c },
+                  { id: 'D', text: question.option_d }
+                ].map((option) => {
+                  // Determine button styling based on answer state
+                  let buttonStyle = "border border-gray-300 bg-white hover:bg-gray-50";
+                  
+                  if (answered && selectedOption === option.id) {
+                    buttonStyle = isCorrect 
+                      ? "border-green-500 bg-green-50 text-green-700" 
+                      : "border-red-500 bg-red-50 text-red-700";
+                  }
+                  
+                  if (answered && option.id === question.correct_option && selectedOption !== option.id) {
+                    buttonStyle = "border-green-500 bg-green-50 text-green-700";
+                  }
+                  
+                  return (
+                    <button
+                      key={option.id}
+                      className={`w-full p-4 rounded-lg text-left flex items-center justify-between ${buttonStyle} ${
+                        answered ? "cursor-default" : "cursor-pointer"
+                      }`}
+                      onClick={() => !answered && onAnswer(option.id)}
+                      disabled={answered}
+                    >
+                      <div className="flex items-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 border ${
+                          answered && selectedOption === option.id
+                            ? isCorrect 
+                              ? "border-green-500 bg-green-500 text-white"
+                              : "border-red-500 bg-red-500 text-white"
+                            : answered && option.id === question.correct_option
+                              ? "border-green-500 bg-green-500 text-white"
+                              : "border-gray-300 bg-white text-gray-700"
+                        }`}>
+                          {option.id}
+                        </div>
+                        <span>{option.text}</span>
+                      </div>
+                      
+                      {answered && option.id === question.correct_option && (
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                      )}
+                      {answered && selectedOption === option.id && !isCorrect && (
+                        <AlertCircle className="w-5 h-5 text-red-500" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            
+            {answered && (
+              <div className={`p-4 rounded-lg text-center ${
+                isCorrect ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+              }`}>
+                {isCorrect 
+                  ? "Correct! Well done!"
+                  : `Incorrect. The correct answer is ${question.correct_option}.`
+                }
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 const WaitingRoom: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { authState } = useAuth();
-  const { gameState, setGameState } = useAppContext();
+  const { gameState, setGameState, topics, questions } = useAppContext();
   const [countdown, setCountdown] = useState<number | null>(null);
   const countdownTimerRef = useRef<number | null>(null);
+  
+  // Game flow state
+  const [currentTopicIndex, setCurrentTopicIndex] = useState(0);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [showingNarrative, setShowingNarrative] = useState(false);
+  const [answered, setAnswered] = useState(false);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   
   // Poll for updates and set up subscription
   useEffect(() => {
@@ -40,18 +176,18 @@ const WaitingRoom: React.FC = () => {
     // Initial fetch
     fetchData();
     
-    // Subscribe to game_sessions changes
+    // Subscribe to students changes
     const subscription = supabase
-      .channel('public:game_sessions')
+      .channel('public:students')
       .on('postgres_changes', { 
         event: 'UPDATE', 
         schema: 'public', 
-        table: 'game_sessions' 
+        table: 'students' 
       }, (payload) => {
-        console.log('Game session update received:', payload);
+        console.log('Student update received:', payload);
         
-        // Check if any game is starting
-        if (payload.new.status === 'in_progress') {
+        // Check if any student is changing to playing status
+        if (payload.new.status === 'playing') {
           // Start countdown
           setGameState({
             ...gameState,
@@ -75,6 +211,9 @@ const WaitingRoom: React.FC = () => {
     if (gameState.status === 'countdown') {
       // Start countdown
       startCountdown();
+    } else if (gameState.status === 'playing') {
+      // Show narrative for first topic
+      setShowingNarrative(true);
     }
   }, [gameState.status]);
 
@@ -113,6 +252,53 @@ const WaitingRoom: React.FC = () => {
         return prev ? prev - 1 : null;
       });
     }, 1000);
+  };
+  
+  // Get current topic and its questions
+  const currentTopic = topics.length > currentTopicIndex ? topics[currentTopicIndex] : null;
+  const topicQuestions = currentTopic ? questions[currentTopic.id] || [] : [];
+  const currentQuestion = topicQuestions.length > currentQuestionIndex ? topicQuestions[currentQuestionIndex] : null;
+  
+  // Handle continuing from narrative to questions
+  const handleContinueFromNarrative = () => {
+    setShowingNarrative(false);
+  };
+  
+  // Handle answering a question
+  const handleAnswer = (option: string) => {
+    const correct = option === currentQuestion?.correct_option;
+    setSelectedOption(option);
+    setIsCorrect(correct);
+    setAnswered(true);
+    
+    // Move to next question after delay
+    setTimeout(() => {
+      if (currentQuestionIndex < topicQuestions.length - 1) {
+        // Next question in same topic
+        setCurrentQuestionIndex(currentQuestionIndex + 1);
+      } else if (currentTopicIndex < topics.length - 1) {
+        // Move to next topic
+        setCurrentTopicIndex(currentTopicIndex + 1);
+        setCurrentQuestionIndex(0);
+        setShowingNarrative(true);
+      } else {
+        // Game complete
+        setGameState({
+          ...gameState,
+          status: 'results'
+        });
+        
+        // Update student status to completed
+        if (authState.user) {
+          updateStudentStatus(authState.user.id, 'completed');
+        }
+      }
+      
+      // Reset for next question
+      setAnswered(false);
+      setSelectedOption(null);
+      setIsCorrect(null);
+    }, 3000);
   };
   
   // Find current student
@@ -173,8 +359,54 @@ const WaitingRoom: React.FC = () => {
       </div>
     );
   }
+  
+  // Show game completed screen
+  if (gameState.status === 'results') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#EEF4FF] p-4">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <CardTitle>Game Completed!</CardTitle>
+            <CardDescription>
+              Great job participating in this game session
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6 text-center">
+              <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center mx-auto">
+                <CheckCircle className="w-12 h-12 text-green-500" />
+              </div>
+              
+              <p className="text-lg">
+                Thank you for playing! Your teacher will share the results soon.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  // Show active game screens - narrative or questions
+  if (gameState.status === 'playing') {
+    if (showingNarrative && currentTopic) {
+      return <NarrativeScreen topic={currentTopic} onContinue={handleContinueFromNarrative} />;
+    }
+    
+    if (currentQuestion) {
+      return (
+        <QuestionScreen 
+          question={currentQuestion} 
+          onAnswer={handleAnswer}
+          answered={answered}
+          selectedOption={selectedOption}
+          isCorrect={isCorrect}
+        />
+      );
+    }
+  }
 
-  // Main waiting room
+  // Main waiting room (default view)
   return (
     <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
       <Card className="w-full max-w-lg">

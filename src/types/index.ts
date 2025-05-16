@@ -49,7 +49,7 @@ export interface ProcessingState {
   error?: string;
 }
 
-export type AppView = 'upload' | 'processing' | 'review' | 'launch' | 'lobby';
+export type AppView = 'select' | 'upload' | 'processing' | 'review' | 'launch' | 'lobby';
 
 // Auth and user types
 export interface UserProfile {
@@ -70,17 +70,7 @@ export interface Student {
   name: string;
   session_id: string | null;
   joined_at: string;
-}
-
-export interface GameSession {
-  id: string;
-  chapter_id: string;
-  teacher_name: string;
-  started_at: string;
-  ended_at: string | null;
-  current_topic_id: string | null;
-  status: 'not_started' | 'in_progress' | 'completed';
-  game_code: string;
+  status?: 'waiting' | 'playing' | 'completed';
 }
 
 // Game state types
@@ -90,4 +80,23 @@ export interface GameState {
   currentTopic: Topic | null;
   currentQuestion: Question | null;
   sessionId: string | null;
+}
+
+// Player game response
+export interface PlayerResponse {
+  studentId: string;
+  questionId: string;
+  selectedOption: string;
+  isCorrect: boolean;
+  timestamp: Date;
+}
+
+// Player stats
+export interface PlayerStats {
+  studentId: string;
+  studentName: string;
+  currentQuestion: number;
+  correctAnswers: number;
+  totalAnswered: number;
+  score: number;
 }
