@@ -23,7 +23,7 @@ const AIProcessing: React.FC = () => {
   } = useAppContext();
 
   const [error, setError] = useState<string | null>(null);
-  const [chapterSaved, setChapterSaved] = useState(false);
+  const [savedChapter, setSavedChapter] = useState<any>(null);
 
   // Process content with OpenAI and save to Supabase
   useEffect(() => {
@@ -56,118 +56,137 @@ const AIProcessing: React.FC = () => {
       }
 
       // Step 2: Save chapter to database (only if not already saved)
-      if (!chapterSaved) {
-        setProcessingState(prev => ({
-          ...prev,
-          progress: 20,
-          message: 'Saving chapter to database...'
-        }));
+      setProcessingState(prev => ({
+        ...prev,
+        progress: 20,
+        message: 'Saving chapter to database...'
+      }));
 
-        const savedChapter = await saveChapter(
+      console.log('Saving chapter to database:', currentChapter.title);
+      
+      // If we don't already have a saved chapter, create one
+      let chapterToUse = savedChapter;
+      if (!chapterToUse) {
+        const savedChapterData = await saveChapter(
           currentChapter.title,
           chapterContent,
           currentChapter.grade,
           null // pdfUrl - would be implemented with file storage
         );
         
-        // Mark chapter as saved to prevent duplicate saving
-        setChapterSaved(true);
-
-        // Step 3: Extract topics with OpenAI
-        setProcessingState(prev => ({
-          ...prev,
-          progress: 30,
-          message: 'Identifying instructional topics...'
-        }));
-
-        const extractedTopics = await extractTopics(chapterContent, currentChapter.grade);
-
-        // Step 4: Generate narrative elements
-        setProcessingState(prev => ({
-          ...prev,
-          progress: 50,
-          message: 'Generating narrative elements...'
-        }));
-
-        const narratives = await generateNarratives(extractedTopics);
-
-        // Step 5: Save topics and narratives to database
-        setProcessingState(prev => ({
-          ...prev,
-          progress: 60,
-          message: 'Saving topics to database...'
-        }));
-
-        const savedTopics = await saveTopics(extractedTopics, narratives, savedChapter.id);
-
-        // Create a mapping from topic title to database ID
-        const topicIdMap: Record<string, string> = {};
-        savedTopics.forEach(topic => {
-          topicIdMap[topic.topic_name] = topic.id;
-        });
-
-        // Step 6: Generate questions for each topic
-        setProcessingState(prev => ({
-          ...prev,
-          progress: 70,
-          message: 'Creating question bank...'
-        }));
-
-        let allQuestions = [];
-        for (const topic of extractedTopics) {
-          try {
-            const topicQuestions = await generateQuestions(topic, currentChapter.grade);
-            if (topicQuestions.length > 0) {
-              allQuestions = [...allQuestions, ...topicQuestions];
-            }
-          } catch (err) {
-            console.warn(`Error generating questions for topic ${topic.title}:`, err);
-            // Continue with other topics instead of failing completely
-          }
-        }
-
-        // Only proceed if we have questions
-        if (allQuestions.length > 0) {
-          // Step 7: Save questions to database
-          setProcessingState(prev => ({
-            ...prev,
-            progress: 90,
-            message: 'Saving questions to database...'
-          }));
-
-          await saveQuestions(allQuestions, topicIdMap);
-        } else {
-          console.warn('No questions were generated for any topics');
-        }
-
-        // Step 8: Finalize and prepare for review
-        setProcessingState(prev => ({
-          ...prev,
-          progress: 100,
-          message: 'Finalizing content...'
-        }));
-
-        // Load topics from database for display
-        const dbTopics = await getTopicsByChapterId(savedChapter.id);
-        setTopics(dbTopics);
-
-        // Load questions for each topic
-        const questionsMap: Record<string, any[]> = {};
-        for (const topic of dbTopics) {
-          const topicQuestions = await getQuestionsByTopicId(topic.id);
-          questionsMap[topic.id] = topicQuestions;
-        }
-        setQuestions(questionsMap);
-
-        // Mark processing as complete
-        setTimeout(() => {
-          setProcessingState(prev => ({ 
-            ...prev, 
-            status: 'ready',
-            message: 'Processing complete!' 
-          }));
-        }, 1000);
+        chapterToUse = savedChapterData;
+        setSavedChapter(savedChapterData);
+        console.log('Chapter saved with ID:', savedChapterData.id);
+      } else {
+        console.log('Using already saved chapter with ID:', chapterToUse.id);
       }
+
+      // Step 3: Extract topics with OpenAI
+      setProcessingState(prev => ({
+        ...prev,
+        progress: 30,
+        message: 'Identifying instructional topics...'
+      }));
+
+      console.log('Extracting topics with OpenAI');
+      const extractedTopics = await extractTopics(chapterContent, currentChapter.grade);
+      console.log('Topics extracted:', extractedTopics.length);
+
+      // Step 4: Generate narrative elements
+      setProcessingState(prev => ({
+        ...prev,
+        progress: 50,
+        message: 'Generating narrative elements...'
+      }));
+
+      console.log('Generating narratives');
+      const narratives = await generateNarratives(extractedTopics);
+      console.log('Narratives generated:', narratives.length);
+
+      // Step 5: Save topics and narratives to database
+      setProcessingState(prev => ({
+        ...prev,
+        progress: 60,
+        message: 'Saving topics to database...'
+      }));
+
+      console.log('Saving topics to database');
+      const savedTopics = await saveTopics(extractedTopics, narratives, chapterToUse.id);
+      console.log('Topics saved:', savedTopics.length);
+
+      // Create a mapping from topic title to database ID
+      const topicIdMap: Record<string, string> = {};
+      savedTopics.forEach(topic => {
+        topicIdMap[topic.topic_name] = topic.id;
+      });
+
+      // Step 6: Generate questions for each topic
+      setProcessingState(prev => ({
+        ...prev,
+        progress: 70,
+        message: 'Creating question bank...'
+      }));
+
+      console.log('Generating questions for topics');
+      let allQuestions = [];
+      for (const topic of extractedTopics) {
+        try {
+          const topicQuestions = await generateQuestions(topic, currentChapter.grade);
+          if (topicQuestions.length > 0) {
+            allQuestions = [...allQuestions, ...topicQuestions];
+          }
+        } catch (err) {
+          console.warn(`Error generating questions for topic ${topic.title}:`, err);
+          // Continue with other topics instead of failing completely
+        }
+      }
+      console.log('Generated questions:', allQuestions.length);
+
+      // Only proceed if we have questions
+      if (allQuestions.length > 0) {
+        // Step 7: Save questions to database
+        setProcessingState(prev => ({
+          ...prev,
+          progress: 90,
+          message: 'Saving questions to database...'
+        }));
+
+        console.log('Saving questions to database');
+        await saveQuestions(allQuestions, topicIdMap);
+        console.log('Questions saved successfully');
+      } else {
+        console.warn('No questions were generated for any topics');
+      }
+
+      // Step 8: Finalize and prepare for review
+      setProcessingState(prev => ({
+        ...prev,
+        progress: 100,
+        message: 'Finalizing content...'
+      }));
+
+      // Load topics from database for display
+      console.log('Loading topics from database');
+      const dbTopics = await getTopicsByChapterId(chapterToUse.id);
+      setTopics(dbTopics);
+
+      // Load questions for each topic
+      console.log('Loading questions for topics');
+      const questionsMap: Record<string, any[]> = {};
+      for (const topic of dbTopics) {
+        const topicQuestions = await getQuestionsByTopicId(topic.id);
+        questionsMap[topic.id] = topicQuestions;
+      }
+      setQuestions(questionsMap);
+
+      // Mark processing as complete
+      setTimeout(() => {
+        setProcessingState(prev => ({ 
+          ...prev, 
+          status: 'ready',
+          message: 'Processing complete!' 
+        }));
+      }, 1000);
     } catch (err) {
       console.error('Error processing chapter:', err);
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
@@ -185,7 +204,7 @@ const AIProcessing: React.FC = () => {
 
   const handleRetry = () => {
     setError(null);
-    setChapterSaved(false); // Reset saved state to allow retrying
+    setSavedChapter(null); // Reset saved chapter to allow retrying
     setProcessingState({ 
       status: 'idle', 
       progress: 0 

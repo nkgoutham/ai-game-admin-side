@@ -10,6 +10,8 @@ import { ExtractedTopic, GeneratedQuestion, TopicNarrative } from '../lib/openai
  */
 export async function saveChapter(title: string, content: string, grade: string, pdfUrl?: string | null) {
   try {
+    console.log(`Saving chapter: ${title}, Grade: ${grade}`);
+    
     const { data, error } = await supabase
       .from('chapters')
       .insert({
@@ -22,7 +24,12 @@ export async function saveChapter(title: string, content: string, grade: string,
       .select()
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('Database error saving chapter:', error);
+      throw error;
+    }
+    
+    console.log(`Successfully saved chapter with ID: ${data.id}`);
     return data;
   } catch (error) {
     console.error('Error saving chapter:', error);
@@ -35,6 +42,8 @@ export async function saveChapter(title: string, content: string, grade: string,
  */
 export async function saveTopics(topics: ExtractedTopic[], narratives: TopicNarrative[], chapterId: string) {
   try {
+    console.log(`Saving ${topics.length} topics for chapter ${chapterId}`);
+    
     const topicsWithNarratives = topics.map((topic, index) => {
       const narrative = narratives.find(n => parseInt(n.topicId) === index)?.narrative || '';
       
@@ -46,12 +55,19 @@ export async function saveTopics(topics: ExtractedTopic[], narratives: TopicNarr
       };
     });
     
+    console.log('Prepared topics with narratives:', topicsWithNarratives);
+    
     const { data, error } = await supabase
       .from('topic_details')
       .insert(topicsWithNarratives)
       .select();
     
-    if (error) throw error;
+    if (error) {
+      console.error('Database error saving topics:', error);
+      throw error;
+    }
+    
+    console.log(`Successfully saved ${data.length} topics to database`);
     return data;
   } catch (error) {
     console.error('Error saving topics:', error);
@@ -64,7 +80,16 @@ export async function saveTopics(topics: ExtractedTopic[], narratives: TopicNarr
  */
 export async function saveQuestions(questions: GeneratedQuestion[], topicIdMap: Record<string, string>) {
   try {
-    const formattedQuestions = questions.map(question => ({
+    console.log(`Saving ${questions.length} questions with topic ID mapping:`, topicIdMap);
+    
+    // First, validate that all questions have a matching topic ID
+    const validQuestions = questions.filter(q => topicIdMap[q.topicId]);
+    
+    if (validQuestions.length < questions.length) {
+      console.warn(`Filtered out ${questions.length - validQuestions.length} questions with invalid topic IDs`);
+    }
+    
+    const formattedQuestions = validQuestions.map(question => ({
       topic_id: topicIdMap[question.topicId],
       question_stem: question.stem,
       option_a: question.optionA,
@@ -74,13 +99,53 @@ export async function saveQuestions(questions: GeneratedQuestion[], topicIdMap: 
       correct_option: question.correctOption
     }));
     
-    const { data, error } = await supabase
-      .from('questions')
-      .insert(formattedQuestions)
-      .select();
+    console.log('Formatted questions for database:', formattedQuestions.length);
     
-    if (error) throw error;
-    return data;
+    // Save in batches if there are many questions
+    if (formattedQuestions.length > 50) {
+      console.log('Large number of questions detected, saving in batches');
+      // Split into batches of 20
+      const batches = [];
+      for (let i = 0; i < formattedQuestions.length; i += 20) {
+        batches.push(formattedQuestions.slice(i, i + 20));
+      }
+      
+      let allData = [];
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        console.log(`Saving batch ${i+1} of ${batches.length} (${batch.length} questions)`);
+        
+        const { data, error } = await supabase
+          .from('questions')
+          .insert(batch)
+          .select();
+        
+        if (error) {
+          console.error(`Error saving batch ${i+1}:`, error);
+          throw error;
+        }
+        
+        allData = [...allData, ...data];
+        console.log(`Batch ${i+1} saved successfully`);
+      }
+      
+      console.log(`All ${allData.length} questions saved successfully`);
+      return allData;
+    } else {
+      // Save all at once for smaller sets
+      const { data, error } = await supabase
+        .from('questions')
+        .insert(formattedQuestions)
+        .select();
+      
+      if (error) {
+        console.error('Database error saving questions:', error);
+        throw error;
+      }
+      
+      console.log(`Successfully saved ${data.length} questions to database`);
+      return data;
+    }
   } catch (error) {
     console.error('Error saving questions:', error);
     throw new Error('Failed to save questions to database');
@@ -329,15 +394,35 @@ export async function getGameSessionByCode(gameCode: string) {
  */
 export async function clearAllContent() {
   try {
+    console.log('Clearing all content from database');
+    
     // Delete in order that respects foreign key constraints
     // Start with tables that reference others
-    await supabase.from('responses').delete();
-    await supabase.from('students').delete();
-    await supabase.from('questions').delete();
-    await supabase.from('game_sessions').delete();
-    await supabase.from('topic_details').delete();
-    await supabase.from('chapters').delete();
+    console.log('Deleting responses...');
+    const { error: respError } = await supabase.from('responses').delete();
+    if (respError) console.error('Error deleting responses:', respError);
     
+    console.log('Deleting students...');
+    const { error: studError } = await supabase.from('students').delete();
+    if (studError) console.error('Error deleting students:', studError);
+    
+    console.log('Deleting questions...');
+    const { error: qError } = await supabase.from('questions').delete();
+    if (qError) console.error('Error deleting questions:', qError);
+    
+    console.log('Deleting game_sessions...');
+    const { error: gsError } = await supabase.from('game_sessions').delete();
+    if (gsError) console.error('Error deleting game_sessions:', gsError);
+    
+    console.log('Deleting topic_details...');
+    const { error: tdError } = await supabase.from('topic_details').delete();
+    if (tdError) console.error('Error deleting topic_details:', tdError);
+    
+    console.log('Deleting chapters...');
+    const { error: chError } = await supabase.from('chapters').delete();
+    if (chError) console.error('Error deleting chapters:', chError);
+    
+    console.log('All content cleared successfully');
     return { success: true };
   } catch (error) {
     console.error('Error clearing content:', error);

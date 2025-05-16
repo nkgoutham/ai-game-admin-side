@@ -92,9 +92,10 @@ const ChapterUpload: React.FC = () => {
       return;
     }
 
-    // Create a chapter object
+    // Create a chapter object but don't save to database yet
+    // This prevents duplicate database entries
     const newChapter = {
-      id: Date.now().toString(),
+      id: Date.now().toString(), // This is a temporary client-side ID, real DB ID will be assigned later
       title,
       content: uploadState.content || '',
       grade,
@@ -103,6 +104,8 @@ const ChapterUpload: React.FC = () => {
       file: uploadState.file
     };
 
+    console.log('Chapter prepared for processing:', newChapter.title);
+    
     setCurrentChapter(newChapter);
     setUploadState({ ...uploadState, status: 'confirmed' });
     setView('processing');
