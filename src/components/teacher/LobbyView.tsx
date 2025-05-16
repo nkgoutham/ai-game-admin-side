@@ -7,11 +7,11 @@ import { Users, ArrowLeft, Play, RefreshCw, UserPlus } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../ui/Card';
 import Button from '../ui/Button';
 import { useAppContext } from '../../context/AppContext';
-import { getAllStudents, updateGameSessionStatus } from '../../services/database';
+import { getAllStudents, updateGameSessionStatus, getOrCreateDefaultGameSession } from '../../services/database';
 import { Student } from '../../types';
 
 const LobbyView: React.FC = () => {
-  const { currentChapter, gameSession, setView } = useAppContext();
+  const { currentChapter, gameSession, setGameSession, setView } = useAppContext();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -24,8 +24,26 @@ const LobbyView: React.FC = () => {
     // Set up polling every 10 seconds
     const interval = setInterval(fetchStudents, 10000);
     
+    // Ensure we have a game session
+    if (!gameSession) {
+      initializeGameSession();
+    }
+    
     return () => clearInterval(interval);
   }, []);
+  
+  // Initialize a game session if needed
+  const initializeGameSession = async () => {
+    try {
+      const session = await getOrCreateDefaultGameSession(
+        currentChapter?.id, 
+        'Anonymous Teacher'
+      );
+      setGameSession(session);
+    } catch (error) {
+      console.error('Error initializing game session:', error);
+    }
+  };
   
   // Fetch all students in the system
   const fetchStudents = async () => {

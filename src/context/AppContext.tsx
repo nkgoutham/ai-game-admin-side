@@ -60,27 +60,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Set up real-time subscription for game status changes
   useEffect(() => {
-    if (!gameSession) return;
-
-    // Subscribe to game session changes
+    // Subscribe to all game_sessions updates for simplicity
     const subscription = supabase
-      .channel(`game_session_${gameSession.id}`)
+      .channel('game_sessions_channel')
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
         table: 'game_sessions',
-        filter: `id=eq.${gameSession.id}`
       }, (payload) => {
         console.log('Game session updated:', payload);
-        setGameSession(payload.new as GameSession);
         
-        // Update game state if status changes
-        const newStatus = payload.new.status;
-        if (newStatus === 'in_progress' && gameState.status === 'waiting') {
-          setGameState({
-            ...gameState,
-            status: 'countdown',
-          });
+        // Update local state if it's our current game session
+        if (gameSession && payload.new.id === gameSession.id) {
+          setGameSession(payload.new as GameSession);
+          
+          // Update game state if status changes
+          const newStatus = payload.new.status;
+          if (newStatus === 'in_progress' && gameState.status === 'waiting') {
+            setGameState({
+              ...gameState,
+              status: 'countdown',
+            });
+          }
         }
       })
       .subscribe();

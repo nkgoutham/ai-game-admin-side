@@ -68,7 +68,7 @@ export interface AuthState {
 export interface Student {
   id: string;
   name: string;
-  session_id: string;
+  session_id: string | null;
   joined_at: string;
 }
 

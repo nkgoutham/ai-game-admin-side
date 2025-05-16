@@ -10,6 +10,7 @@ import { getAllStudents } from '../../services/database';
 import { Student, GameSession } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useAppContext } from '../../context/AppContext';
+import { supabase } from '../../lib/supabase';
 
 const WaitingRoom: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -20,10 +21,8 @@ const WaitingRoom: React.FC = () => {
   const [countdown, setCountdown] = useState<number | null>(null);
   const countdownTimerRef = useRef<number | null>(null);
   
-  // Poll for updates
+  // Poll for updates and set up subscription
   useEffect(() => {
-    let interval: number;
-    
     const fetchData = async () => {
       try {
         // Get all students
@@ -41,11 +40,33 @@ const WaitingRoom: React.FC = () => {
     // Initial fetch
     fetchData();
     
-    // Set up polling
-    interval = window.setInterval(fetchData, 5000);
+    // Subscribe to game_sessions changes
+    const subscription = supabase
+      .channel('public:game_sessions')
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'game_sessions' 
+      }, (payload) => {
+        console.log('Game session update received:', payload);
+        
+        // Check if any game is starting
+        if (payload.new.status === 'in_progress') {
+          // Start countdown
+          setGameState({
+            ...gameState,
+            status: 'countdown'
+          });
+        }
+      })
+      .subscribe();
+    
+    // Set up polling for students
+    const interval = window.setInterval(fetchData, 5000);
     
     return () => {
       clearInterval(interval);
+      supabase.removeChannel(subscription);
     };
   }, []);
 

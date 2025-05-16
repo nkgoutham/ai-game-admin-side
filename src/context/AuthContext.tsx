@@ -5,7 +5,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { AuthState, UserProfile } from '../types';
 import { supabase } from '../lib/supabase';
-import { getOrCreateDefaultGameSession, addStudentToSession } from '../services/database';
+import { addStudentToSession } from '../services/database';
 
 interface AuthContextType {
   authState: AuthState;
@@ -181,15 +181,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setAuthState({ ...authState, isLoading: true, error: null });
       
-      // Get or create a default game session for students to join
-      const session = await getOrCreateDefaultGameSession();
-      
-      // Add the student to the session
-      const student = await addStudentToSession(name, session.id);
+      // Simply add the student without requiring a session ID
+      const student = await addStudentToSession(name);
       
       // Store the student info in local storage
       localStorage.setItem('student', JSON.stringify(student));
-      localStorage.setItem('game_session', JSON.stringify(session));
       
       // Update auth state with a pseudo-user with player role
       setAuthState({ 
@@ -203,11 +199,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       
     } catch (error) {
-      console.error('Join lobby error:', error);
+      console.error('Join game error:', error);
       setAuthState({ 
         ...authState, 
         isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to join lobby' 
+        error: error instanceof Error ? error.message : 'Failed to join game' 
       });
     }
   };

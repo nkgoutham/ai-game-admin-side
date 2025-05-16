@@ -180,7 +180,7 @@ export async function getOrCreateDefaultGameSession(chapterId?: string, teacherN
     const gameCode = generateGameCode();
     
     // If no chapterId is provided, we'll add a placeholder
-    const defaultChapterId = chapterId || 'pending';
+    const defaultChapterId = chapterId || '00000000-0000-0000-0000-000000000000';
     
     const { data, error } = await supabase
       .from('game_sessions')
@@ -339,15 +339,22 @@ export async function getAllStudents() {
 /**
  * Add a student to a game session
  */
-export async function addStudentToSession(name: string, sessionId: string) {
+export async function addStudentToSession(name: string, sessionId: string | null = null) {
   try {
+    // Create student object with optional session ID
+    const studentObj: any = {
+      name,
+      joined_at: new Date().toISOString()
+    };
+    
+    // Only add session_id if it's provided
+    if (sessionId) {
+      studentObj.session_id = sessionId;
+    }
+    
     const { data, error } = await supabase
       .from('students')
-      .insert({
-        name,
-        session_id: sessionId,
-        joined_at: new Date().toISOString()
-      })
+      .insert(studentObj)
       .select()
       .single();
     
