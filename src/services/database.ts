@@ -352,7 +352,7 @@ export async function addStudentToSession(name: string) {
     const studentObj = {
       name,
       joined_at: new Date().toISOString(),
-      status: 'waiting'
+      status: 'waiting' // Now the database has this column
     };
     
     const { data, error } = await supabase
