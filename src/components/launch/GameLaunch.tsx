@@ -9,16 +9,16 @@ import {
   Users, 
   Clock, 
   CheckCircle, 
-  Copy, 
   Share2,
-  UserPlus,
   ArrowLeft,
-  Eye
+  Eye,
+  RefreshCw
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../ui/Card';
 import Button from '../ui/Button';
 import { useAppContext } from '../../context/AppContext';
-import { createGameSession, getOrCreateDefaultGameSession, updateGameSessionStatus } from '../../services/database';
+import { createGameSession, getOrCreateDefaultGameSession, updateGameSessionStatus, getAllStudents } from '../../services/database';
+import { Student } from '../../types';
 
 const GameLaunch: React.FC = () => {
   const { 
@@ -28,11 +28,14 @@ const GameLaunch: React.FC = () => {
     setView, 
     gameSession, 
     setGameSession,
-    gameState
+    gameState,
+    setGameState
   } = useAppContext();
   
   const [launchState, setLaunchState] = useState<'ready' | 'starting' | 'active'>('ready');
-  const [copied, setCopied] = useState(false);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [timeLimit, setTimeLimit] = useState(5);
   
   // Initialize or fetch game session on component mount
@@ -42,6 +45,7 @@ const GameLaunch: React.FC = () => {
     } else if (gameSession.status === 'in_progress') {
       setLaunchState('active');
     }
+    fetchStudents();
   }, []);
 
   // Initialize a game session
@@ -61,12 +65,25 @@ const GameLaunch: React.FC = () => {
     }
   };
   
-  const handleCopyCode = () => {
-    if (!gameSession) return;
-    
-    navigator.clipboard.writeText(gameSession.game_code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  // Fetch all students in the system
+  const fetchStudents = async () => {
+    try {
+      setLoading(true);
+      const studentsData = await getAllStudents();
+      setStudents(studentsData);
+      setLoading(false);
+      setRefreshing(false);
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+  
+  // Handle manual refresh
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchStudents();
   };
   
   const handleLaunch = async () => {
@@ -117,6 +134,17 @@ const GameLaunch: React.FC = () => {
       if (launchState !== 'active') {
         setLaunchState('active');
       }
+      
+      // Update game state to playing
+      setGameState({
+        ...gameState,
+        status: 'playing',
+        currentTopic: topics.length > 0 ? topics[0] : null,
+        sessionId: gameSession.id
+      });
+      
+      // Navigate to the leaderboard/game view for teacher
+      setView('lobby');
     } catch (error) {
       console.error('Error starting game:', error);
       alert('Failed to start game. Please try again.');
@@ -186,33 +214,73 @@ const GameLaunch: React.FC = () => {
                   </div>
                 </div>
                 
-                {gameSession && (
-                  <div className="bg-white p-4 rounded-lg border border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-medium">Game Access Code</h3>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleCopyCode}
-                        icon={copied ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                      >
-                        {copied ? 'Copied!' : 'Copy'}
-                      </Button>
-                    </div>
-                    
-                    <div className="flex justify-center">
-                      <div className="bg-[#EEF4FF] px-6 py-3 rounded-lg">
-                        <span className="text-2xl font-bold tracking-wider text-[#3A7AFE]">
-                          {gameSession.game_code}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <p className="text-xs text-center text-gray-500 mt-2">
-                      Students can join using this code at play.etherexcel.edu
-                    </p>
+                {/* Students in Lobby section - replacing Game Access Code */}
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-medium">Students in Lobby</h3>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={handleRefresh}
+                      isLoading={refreshing}
+                      icon={<RefreshCw className="w-4 h-4" />}
+                    >
+                      Refresh
+                    </Button>
                   </div>
-                )}
+                  
+                  <div className="border border-gray-200 rounded-lg overflow-hidden mb-2">
+                    {loading ? (
+                      <div className="p-4 text-center">
+                        <div className="inline-block w-6 h-6 border-2 border-t-blue-500 border-gray-200 rounded-full animate-spin mb-2"></div>
+                        <p className="text-gray-500 text-sm">Loading students...</p>
+                      </div>
+                    ) : students.length > 0 ? (
+                      <div className="max-h-40 overflow-y-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                #
+                              </th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Name
+                              </th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Joined At
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {students.map((student, index) => (
+                              <tr key={student.id}>
+                                <td className="px-3 py-2 whitespace-nowrap">
+                                  <div className="w-6 h-6 rounded-full bg-[#3A7AFE] text-white flex items-center justify-center text-xs">
+                                    {index + 1}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                                  {new Date(student.joined_at).toLocaleTimeString()}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="p-4 text-center text-gray-500 text-sm">
+                        No students have joined yet
+                      </div>
+                    )}
+                  </div>
+                  
+                  <p className="text-xs text-center text-gray-500">
+                    Students are automatically added when they join the classroom
+                  </p>
+                </div>
               </div>
               
               <div className="flex justify-center gap-4">
@@ -260,21 +328,70 @@ const GameLaunch: React.FC = () => {
                 <div>
                   <h3 className="font-medium text-green-800">Game Session Active</h3>
                   <p className="text-sm text-green-600">
-                    Your game is now running. Students can join with code {gameSession?.game_code}.
+                    Your game is now ready to start. {students.length} students in the lobby.
                   </p>
                 </div>
               </div>
               
               <div className="bg-white p-5 rounded-lg border border-gray-200">
                 <div className="flex justify-between mb-4">
-                  <h3 className="text-lg font-medium">Student Session</h3>
+                  <h3 className="text-lg font-medium">Player Lobby</h3>
                   <Button 
-                    onClick={handleViewLobby}
-                    icon={<Eye className="w-4 h-4 mr-1" />}
+                    onClick={handleRefresh}
+                    icon={<RefreshCw className="w-4 h-4 mr-1" />}
                     size="sm"
+                    isLoading={refreshing}
                   >
-                    View Lobby
+                    Refresh
                   </Button>
+                </div>
+                
+                <div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
+                  {loading ? (
+                    <div className="p-4 text-center">
+                      <div className="inline-block w-6 h-6 border-2 border-t-blue-500 border-gray-200 rounded-full animate-spin mb-2"></div>
+                      <p className="text-gray-500 text-sm">Loading students...</p>
+                    </div>
+                  ) : students.length > 0 ? (
+                    <div className="max-h-60 overflow-y-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              #
+                            </th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Name
+                            </th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Joined At
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {students.map((student, index) => (
+                            <tr key={student.id}>
+                              <td className="px-3 py-2 whitespace-nowrap">
+                                <div className="w-6 h-6 rounded-full bg-[#3A7AFE] text-white flex items-center justify-center text-xs">
+                                  {index + 1}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap">
+                                <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                                {new Date(student.joined_at).toLocaleTimeString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center text-gray-500 text-sm">
+                      No students have joined yet
+                    </div>
+                  )}
                 </div>
                 
                 <div className="bg-[#EEF4FF] p-3 rounded-lg">
@@ -286,7 +403,7 @@ const GameLaunch: React.FC = () => {
                     onClick={handleStartGame}
                     icon={<Play className="w-4 h-4 mr-1" />}
                     fullWidth
-                    disabled={gameSession?.status === 'in_progress'}
+                    disabled={gameSession?.status === 'in_progress' || students.length === 0}
                   >
                     {gameSession?.status === 'in_progress' ? 'Game Started' : 'Start Game Now'}
                   </Button>

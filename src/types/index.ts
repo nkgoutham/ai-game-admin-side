@@ -91,3 +91,22 @@ export interface GameState {
   currentQuestion: Question | null;
   sessionId: string | null;
 }
+
+// Player game response
+export interface PlayerResponse {
+  studentId: string;
+  questionId: string;
+  selectedOption: string;
+  isCorrect: boolean;
+  timestamp: Date;
+}
+
+// Player stats
+export interface PlayerStats {
+  studentId: string;
+  studentName: string;
+  currentQuestion: number;
+  correctAnswers: number;
+  totalAnswered: number;
+  score: number;
+}
