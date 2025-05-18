@@ -1,26 +1,30 @@
 /**
  * Lobby View component for Ether Excel
- * Displays leaderboard of students and allows the teacher to monitor game progress
+ * Displays game session status and allows the teacher to monitor game progress
  */
-import React, { useEffect, useState } from 'react';
-import { Users, ArrowLeft, RefreshCw, Award, CheckSquare, AlignJustify } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../ui/Card';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, RefreshCw, Award, CheckSquare, AlignJustify } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import Button from '../ui/Button';
 import { useAppContext } from '../../context/AppContext';
-import { getAllStudents, getOrCreateDefaultGameSession, getStudentResponses } from '../../services/database';
-import { Student, Topic, Question, PlayerStats } from '../../types';
-import { supabase } from '../../lib/supabase';
+import { getOrCreateDefaultGameSession } from '../../services/database';
+
+interface LeaderboardEntry {
+  id: string;
+  name: string;
+  correctAnswers: number;
+  totalQuestions: number;
+  score: number;
+}
 
 const LobbyView: React.FC = () => {
-  const { currentChapter, gameSession, setGameSession, setView, topics, questions, gameState } = useAppContext();
-  const [students, setStudents] = useState<Student[]>([]);
+  const { currentChapter, gameSession, setGameSession, setView, topics, questions } = useAppContext();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentTopicIndex, setCurrentTopicIndex] = useState(0);
-  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
-  const [playerStats, setPlayerStats] = useState<PlayerStats[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   
-  // Calculate total questions across all topics - placed before useEffect to maintain hooks order
+  // Calculate total questions across all topics
   const getTotalQuestions = () => {
     return topics.reduce((total, topic) => {
       const topicQuestions = questions[topic.id] || [];
@@ -28,41 +32,24 @@ const LobbyView: React.FC = () => {
     }, 0);
   };
   
-  // Fetch students on load and set up polling
+  // Initialize on component mount
   useEffect(() => {
-    fetchStudents();
-    
-    // Set up polling every 5 seconds
-    const interval = setInterval(() => {
-      fetchStudents();
-      fetchLeaderboardData();
-    }, 5000);
-    
     // Ensure we have a game session
     if (!gameSession) {
       initializeGameSession();
     }
     
-    // Initial leaderboard data fetch
-    fetchLeaderboardData();
+    // For demonstration, we'll generate a placeholder leaderboard
+    generatePlaceholderLeaderboard();
     
-    // Set up real-time subscription for responses table
-    const subscription = supabase
-      .channel('public:responses')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'responses' 
-      }, () => {
-        // When a new response comes in, update the leaderboard
-        fetchLeaderboardData();
-      })
-      .subscribe();
+    setLoading(false);
     
-    return () => {
-      clearInterval(interval);
-      supabase.removeChannel(subscription);
-    };
+    // Set up polling every 5 seconds
+    const interval = setInterval(() => {
+      generatePlaceholderLeaderboard();
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
   
   // Initialize a game session if needed
@@ -78,77 +65,40 @@ const LobbyView: React.FC = () => {
     }
   };
   
-  // Fetch all students in the system
-  const fetchStudents = async () => {
-    try {
-      const studentsData = await getAllStudents();
-      setStudents(studentsData);
-      setLoading(false);
-      setRefreshing(false);
-    } catch (error) {
-      console.error('Error fetching students:', error);
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-  
-  // Fetch real leaderboard data from student responses
-  const fetchLeaderboardData = async () => {
-    try {
-      setLeaderboardLoading(true);
+  // Generate placeholder leaderboard data (for demo purposes only)
+  const generatePlaceholderLeaderboard = () => {
+    const names = [
+      'Emma Thompson', 'Liam Johnson', 'Olivia Williams', 
+      'Noah Smith', 'Ava Jones', 'Lucas Brown', 
+      'Sophia Miller', 'Jackson Davis', 'Isabella Wilson'
+    ];
+    
+    const demoLeaderboard = names.map((name, index) => {
+      // Generate random but consistent data for demo
+      const totalQuestions = getTotalQuestions();
+      const answered = Math.min(Math.floor(totalQuestions * Math.random()), totalQuestions);
+      const correct = Math.floor(answered * (0.5 + Math.random() * 0.5));
       
-      // For each student, get their responses
-      const stats: PlayerStats[] = [];
-      
-      for (const student of students) {
-        try {
-          // Get student responses from the database
-          const responses = await getStudentResponses(student.id);
-          
-          // Calculate stats based on real responses
-          const correctAnswers = responses.filter(response => response.is_correct).length;
-          const totalAnswered = responses.length;
-          
-          // Calculate score - base points plus time bonus
-          // Simple scoring: 10 points per correct answer
-          const score = correctAnswers * 10;
-          
-          // Determine current question index
-          let currentQuestion = totalAnswered;
-          const totalQuestions = getTotalQuestions();
-          if (currentQuestion > totalQuestions) {
-            currentQuestion = totalQuestions;
-          }
-          
-          stats.push({
-            studentId: student.id,
-            studentName: student.name,
-            currentQuestion,
-            correctAnswers,
-            totalAnswered,
-            score
-          });
-        } catch (err) {
-          console.error(`Error fetching responses for student ${student.id}:`, err);
-        }
-      }
-      
-      // Sort by score descending
-      stats.sort((a, b) => b.score - a.score);
-      
-      setPlayerStats(stats);
-      setLeaderboardLoading(false);
-    } catch (error) {
-      console.error('Error fetching leaderboard data:', error);
-      setLeaderboardLoading(false);
-    }
+      return {
+        id: `demo-${index}`,
+        name,
+        correctAnswers: correct,
+        totalQuestions: answered,
+        score: correct * 10 // Simple scoring system
+      };
+    });
+    
+    // Sort by score descending
+    demoLeaderboard.sort((a, b) => b.score - a.score);
+    
+    setLeaderboard(demoLeaderboard);
   };
   
   // Handle manual refresh
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchStudents();
-    fetchLeaderboardData();
+    generatePlaceholderLeaderboard();
+    setTimeout(() => setRefreshing(false), 500);
   };
   
   // Get current topic
@@ -163,9 +113,9 @@ const LobbyView: React.FC = () => {
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
-              <CardTitle>Game Leaderboard</CardTitle>
+              <CardTitle>Game Monitoring</CardTitle>
               <CardDescription>
-                Monitoring student progress in real-time
+                Manage and monitor your active game session
               </CardDescription>
             </div>
             <Button 
@@ -264,19 +214,19 @@ const LobbyView: React.FC = () => {
                       onClick={handleRefresh}
                       icon={<RefreshCw className="w-4 h-4 mr-1" />}
                       size="sm"
-                      isLoading={refreshing || leaderboardLoading}
+                      isLoading={refreshing}
                     >
                       Refresh
                     </Button>
                   </div>
                   
                   <div className="rounded-lg overflow-hidden border border-gray-200">
-                    {loading || leaderboardLoading ? (
+                    {loading ? (
                       <div className="p-8 text-center">
                         <div className="inline-block w-8 h-8 border-2 border-t-blue-500 border-gray-200 rounded-full animate-spin mb-2"></div>
                         <p className="text-gray-500">Loading leaderboard data...</p>
                       </div>
-                    ) : playerStats.length > 0 ? (
+                    ) : leaderboard.length > 0 ? (
                       <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
@@ -288,7 +238,7 @@ const LobbyView: React.FC = () => {
                                 Name
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Question
+                                Progress
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Correct
@@ -299,8 +249,8 @@ const LobbyView: React.FC = () => {
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
-                            {playerStats.map((player, index) => (
-                              <tr key={player.studentId} className={index === 0 ? "bg-yellow-50" : ""}>
+                            {leaderboard.map((player, index) => (
+                              <tr key={player.id} className={index === 0 ? "bg-yellow-50" : ""}>
                                 <td className="px-4 py-3 whitespace-nowrap">
                                   {index === 0 ? (
                                     <div className="w-6 h-6 rounded-full bg-yellow-400 text-white flex items-center justify-center text-xs">
@@ -321,10 +271,10 @@ const LobbyView: React.FC = () => {
                                   )}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                  <div className="text-sm font-medium text-gray-900">{player.studentName}</div>
+                                  <div className="text-sm font-medium text-gray-900">{player.name}</div>
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                  {player.currentQuestion} / {getTotalQuestions()}
+                                  {player.totalQuestions} / {getTotalQuestions()}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                                   {player.correctAnswers}
@@ -347,7 +297,8 @@ const LobbyView: React.FC = () => {
                   </div>
                   
                   <div className="mt-4 text-center text-sm text-gray-500">
-                    <p>Live updates will appear automatically as students answer questions</p>
+                    <p>Data from the student application will appear here as students answer questions</p>
+                    <p className="text-xs mt-1">(Demo data shown for preview purposes)</p>
                   </div>
                 </div>
               </div>

@@ -1,20 +1,17 @@
 /**
  * Auth Context Provider for Ether Excel
- * Manages authentication state and user roles
+ * Manages authentication state and user role
  */
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { AuthState, UserProfile } from '../types';
 import { supabase } from '../lib/supabase';
-import { addStudentToSession } from '../services/database';
 
 interface AuthContextType {
   authState: AuthState;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, role: 'teacher' | 'player') => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  joinAsPlayer: (name: string) => Promise<void>;
   isTeacher: () => boolean;
-  isPlayer: () => boolean;
 }
 
 const defaultAuthState: AuthState = {
@@ -121,7 +118,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const signUp = async (email: string, password: string, role: 'teacher' | 'player') => {
+  const signUp = async (email: string, password: string) => {
     try {
       setAuthState({ ...authState, isLoading: true, error: null });
       
@@ -133,15 +130,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (signUpError) throw signUpError;
       
       if (data.user) {
-        // Update the role in the profile (default is 'player')
-        if (role === 'teacher') {
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ role: 'teacher' })
-            .eq('id', data.user.id);
-          
-          if (updateError) throw updateError;
-        }
+        // Update the role in the profile to 'teacher'
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ role: 'teacher' })
+          .eq('id', data.user.id);
+        
+        if (updateError) throw updateError;
       }
       
       // User profile will be loaded by the auth state change handler
@@ -177,44 +172,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const joinAsPlayer = async (name: string) => {
-    try {
-      setAuthState({ ...authState, isLoading: true, error: null });
-      
-      // Add the student to the database with the updated function
-      // Note: We're no longer using a session ID as that table has been removed
-      const student = await addStudentToSession(name);
-      
-      // Store the student info in local storage
-      localStorage.setItem('student', JSON.stringify(student));
-      
-      // Update auth state with a pseudo-user with player role
-      setAuthState({ 
-        user: {
-          id: student.id,
-          role: 'player',
-          display_name: name
-        },
-        isLoading: false, 
-        error: null 
-      });
-      
-    } catch (error) {
-      console.error('Join game error:', error);
-      setAuthState({ 
-        ...authState, 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to join game' 
-      });
-    }
-  };
-
   const isTeacher = () => {
     return authState.user?.role === 'teacher';
-  };
-
-  const isPlayer = () => {
-    return authState.user?.role === 'player';
   };
 
   return (
@@ -224,9 +183,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         signIn,
         signUp,
         signOut,
-        joinAsPlayer,
-        isTeacher,
-        isPlayer
+        isTeacher
       }}
     >
       {children}

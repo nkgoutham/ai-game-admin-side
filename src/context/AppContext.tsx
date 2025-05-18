@@ -74,14 +74,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         if (gameSession && payload.new.id === gameSession.id) {
           // Update our game session state
           setGameSession(payload.new as GameSession);
-          
-          // If status changed to in_progress, update game state
-          if (payload.new.status === 'in_progress' && gameState.status === 'waiting') {
-            setGameState({
-              ...gameState,
-              status: 'countdown'
-            });
-          }
         }
       })
       .subscribe();
@@ -89,7 +81,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       supabase.removeChannel(subscription);
     };
-  }, [gameSession, gameState.status]);
+  }, [gameSession]);
 
   const resetState = () => {
     setView('select');

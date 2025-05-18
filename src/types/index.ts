@@ -54,7 +54,7 @@ export type AppView = 'select' | 'upload' | 'processing' | 'review' | 'launch' |
 // Auth and user types
 export interface UserProfile {
   id: string;
-  role: 'teacher' | 'player';
+  role: 'teacher'; // Removed 'player' option
   display_name: string;
   created_at?: string;
 }
@@ -63,14 +63,6 @@ export interface AuthState {
   user: UserProfile | null;
   isLoading: boolean;
   error: string | null;
-}
-
-export interface Student {
-  id: string;
-  name: string;
-  session_id: string | null;
-  joined_at: string;
-  status?: 'waiting' | 'playing' | 'completed';
 }
 
 // Game session type
@@ -93,23 +85,4 @@ export interface GameState {
   currentTopic: Topic | null;
   currentQuestion: Question | null;
   sessionId: string | null;
-}
-
-// Player game response
-export interface PlayerResponse {
-  studentId: string;
-  questionId: string;
-  selectedOption: string;
-  isCorrect: boolean;
-  timestamp: Date;
-}
-
-// Player stats
-export interface PlayerStats {
-  studentId: string;
-  studentName: string;
-  currentQuestion: number;
-  correctAnswers: number;
-  totalAnswered: number;
-  score: number;
 }

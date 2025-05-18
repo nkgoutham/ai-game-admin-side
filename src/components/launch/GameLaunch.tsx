@@ -2,7 +2,7 @@
  * Game Launch component for Ether Excel
  * Handles creating and managing a game session
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Rocket, 
   Play, 
@@ -12,15 +12,12 @@ import {
   Share2,
   ArrowLeft,
   Eye,
-  RefreshCw,
-  Trash2,
-  AlertCircle
+  QrCode
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../ui/Card';
 import Button from '../ui/Button';
 import { useAppContext } from '../../context/AppContext';
-import { getAllStudents, updateStudentStatus, removeStudent, updateGameSessionStatus } from '../../services/database';
-import { Student } from '../../types';
+import { updateGameSessionStatus } from '../../services/database';
 
 const GameLaunch: React.FC = () => {
   const { 
@@ -35,89 +32,31 @@ const GameLaunch: React.FC = () => {
   } = useAppContext();
   
   const [launchState, setLaunchState] = useState<'ready' | 'starting' | 'active'>('ready');
-  const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [timeLimit, setTimeLimit] = useState(5);
-  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
-  const [removingStudent, setRemovingStudent] = useState<string | null>(null);
+  const [gameCode, setGameCode] = useState('ABCD12'); // Placeholder game code
   
-  // Initialize or fetch students on component mount
-  useEffect(() => {
-    fetchStudents();
+  // Handle creating/launching the game session
+  const handleLaunch = async () => {
+    setLaunchState('starting');
     
-    // Create polling for students list
-    const interval = setInterval(fetchStudents, 10000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  // Fetch all students in the system
-  const fetchStudents = async () => {
     try {
-      setLoading(true);
-      const studentsData = await getAllStudents();
-      setStudents(studentsData);
-      setLoading(false);
-      setRefreshing(false);
-    } catch (error) {
-      console.error('Error fetching students:', error);
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-  
-  // Handle refreshing student list
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchStudents();
-  };
-  
-  // Handle student selection for potential removal
-  const toggleStudentSelection = (studentId: string) => {
-    if (selectedStudents.includes(studentId)) {
-      setSelectedStudents(selectedStudents.filter(id => id !== studentId));
-    } else {
-      setSelectedStudents([...selectedStudents, studentId]);
-    }
-  };
-  
-  // Handle removing selected students
-  const handleRemoveSelectedStudents = async () => {
-    if (selectedStudents.length === 0) return;
-    
-    if (window.confirm(`Are you sure you want to remove ${selectedStudents.length} student(s) from the game?`)) {
-      try {
-        setLoading(true);
-        
-        // Remove each selected student
-        for (const studentId of selectedStudents) {
-          setRemovingStudent(studentId);
-          await removeStudent(studentId);
+      // Simulate processing time
+      setTimeout(() => {
+        setLaunchState('active');
+        if (gameSession) {
+          // Update game code from session if available
+          setGameCode(gameSession.game_code);
         }
-        
-        // Reset selections and refresh student list
-        setSelectedStudents([]);
-        await fetchStudents();
-        setRemovingStudent(null);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error removing students:', error);
-        setLoading(false);
-        setRemovingStudent(null);
-        alert('Failed to remove some students. Please try again.');
-      }
+      }, 2000);
+    } catch (error) {
+      console.error('Error launching game:', error);
+      setLaunchState('ready');
     }
   };
   
-  // Handle start game
+  // Handle starting the actual game
   const handleStartGame = async () => {
     try {
-      // Update all student statuses to 'playing'
-      for (const student of students) {
-        await updateStudentStatus(student.id, 'playing');
-      }
-      
       // Update game session status to 'in_progress' if we have a session
       if (gameSession) {
         await updateGameSessionStatus(gameSession.id, 'in_progress');
@@ -130,25 +69,11 @@ const GameLaunch: React.FC = () => {
         currentTopic: topics.length > 0 ? topics[0] : null
       });
       
-      // Navigate to the leaderboard/game view for teacher
+      // Navigate to the game monitoring view
       setView('lobby');
     } catch (error) {
       console.error('Error starting game:', error);
       alert('Failed to start game. Please try again.');
-    }
-  };
-  
-  const handleLaunch = async () => {
-    setLaunchState('starting');
-    
-    try {
-      setTimeout(() => {
-        setLaunchState('active');
-      }, 2000);
-    } catch (error) {
-      console.error('Error launching game:', error);
-      // Handle error case
-      setLaunchState('ready');
     }
   };
   
@@ -227,105 +152,32 @@ const GameLaunch: React.FC = () => {
                   </div>
                 </div>
                 
-                {/* Students in Lobby section with selection and removal */}
+                {/* Game Access Code Section */}
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-medium">Students in Lobby</h3>
-                    <div className="flex space-x-2">
-                      {selectedStudents.length > 0 && (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={handleRemoveSelectedStudents}
-                          className="text-red-600 border-red-200 hover:bg-red-50"
-                          isLoading={!!removingStudent}
-                          icon={<Trash2 className="w-4 h-4" />}
-                        >
-                          Remove {selectedStudents.length} Selected
-                        </Button>
-                      )}
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={handleRefresh}
-                        isLoading={refreshing}
-                        icon={<RefreshCw className="w-4 h-4" />}
-                      >
-                        Refresh
-                      </Button>
-                    </div>
-                  </div>
+                  <h3 className="text-sm font-medium mb-3">Game Access Info</h3>
                   
-                  <div className="border border-gray-200 rounded-lg overflow-hidden mb-2">
-                    {loading ? (
-                      <div className="p-4 text-center">
-                        <div className="inline-block w-6 h-6 border-2 border-t-blue-500 border-gray-200 rounded-full animate-spin mb-2"></div>
-                        <p className="text-gray-500 text-sm">Loading students...</p>
-                      </div>
-                    ) : students.length > 0 ? (
-                      <div className="max-h-40 overflow-y-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Select
-                              </th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                #
-                              </th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Name
-                              </th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Joined At
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {students.map((student, index) => (
-                              <tr 
-                                key={student.id} 
-                                className={selectedStudents.includes(student.id) ? "bg-blue-50" : ""}
-                              >
-                                <td className="px-3 py-2 whitespace-nowrap">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={selectedStudents.includes(student.id)}
-                                    onChange={() => toggleStudentSelection(student.id)}
-                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                  />
-                                </td>
-                                <td className="px-3 py-2 whitespace-nowrap">
-                                  <div className="w-6 h-6 rounded-full bg-[#3A7AFE] text-white flex items-center justify-center text-xs">
-                                    {index + 1}
-                                  </div>
-                                </td>
-                                <td className="px-3 py-2 whitespace-nowrap">
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {student.name}
-                                    {removingStudent === student.id && <span className="ml-2 text-red-500 text-xs">Removing...</span>}
-                                  </div>
-                                </td>
-                                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
-                                  {new Date(student.joined_at).toLocaleTimeString()}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <div className="p-4 text-center text-gray-500 text-sm">
-                        No students have joined yet
-                      </div>
-                    )}
-                  </div>
+                  <p className="text-xs text-gray-500 mb-4">
+                    Students will access the game using the separate student portal URL 
+                    and the game code shown below.
+                  </p>
                   
-                  <div className="text-xs text-gray-500 flex items-center justify-between">
-                    <p>Students are automatically added when they join the classroom</p>
-                    <p className="text-blue-600">
-                      {selectedStudents.length > 0 ? `${selectedStudents.length} students selected` : ''}
+                  <div className="bg-gray-100 p-3 rounded-lg text-center mb-3">
+                    <p className="text-xs text-gray-500 mb-1">Student Portal URL</p>
+                    <p className="font-medium text-[#3A7AFE]">
+                      https://student-game-portal.example.com
                     </p>
+                  </div>
+                  
+                  <div className="flex items-center space-x-3">
+                    <div className="flex-1 bg-[#EEF4FF] p-3 rounded-lg flex items-center justify-center">
+                      <QrCode className="w-5 h-5 text-[#3A7AFE] mr-2" />
+                      <div>
+                        <p className="text-xs text-gray-500">Game Code</p>
+                        <p className="font-mono text-lg font-bold tracking-wider text-[#3A7AFE]">
+                          {gameSession?.game_code || gameCode}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -337,7 +189,7 @@ const GameLaunch: React.FC = () => {
                   icon={<Eye className="w-5 h-5 mr-1" />}
                   variant="outline"
                 >
-                  View Lobby
+                  View Game Board
                 </Button>
                 <Button 
                   size="lg"
@@ -375,101 +227,28 @@ const GameLaunch: React.FC = () => {
                 <div>
                   <h3 className="font-medium text-green-800">Game Session Active</h3>
                   <p className="text-sm text-green-600">
-                    Your game is now ready to start. {students.length} students in the lobby.
+                    Your game is now ready to start. Share the game code with your students.
                   </p>
                 </div>
               </div>
               
               <div className="bg-white p-5 rounded-lg border border-gray-200">
-                <div className="flex justify-between mb-4">
-                  <h3 className="text-lg font-medium">Player Lobby</h3>
-                  <div className="flex space-x-2">
-                    {selectedStudents.length > 0 && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={handleRemoveSelectedStudents}
-                        className="text-red-600 border-red-200 hover:bg-red-50"
-                        isLoading={!!removingStudent}
-                        icon={<Trash2 className="w-4 h-4" />}
-                      >
-                        Remove {selectedStudents.length}
-                      </Button>
-                    )}
-                    <Button 
-                      onClick={handleRefresh}
-                      icon={<RefreshCw className="w-4 h-4 mr-1" />}
-                      size="sm"
-                      isLoading={refreshing}
-                    >
-                      Refresh
-                    </Button>
-                  </div>
-                </div>
+                <h3 className="text-lg font-medium mb-4">Game Access Info</h3>
                 
-                <div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
-                  {loading ? (
-                    <div className="p-4 text-center">
-                      <div className="inline-block w-6 h-6 border-2 border-t-blue-500 border-gray-200 rounded-full animate-spin mb-2"></div>
-                      <p className="text-gray-500 text-sm">Loading students...</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div className="bg-[#EEF4FF] p-4 rounded-lg">
+                    <p className="text-sm font-medium mb-2">Student Portal URL</p>
+                    <div className="bg-white p-3 rounded-md flex items-center justify-between">
+                      <p className="text-sm text-[#3A7AFE] truncate">https://student-game-portal.example.com</p>
                     </div>
-                  ) : students.length > 0 ? (
-                    <div className="max-h-60 overflow-y-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Select
-                            </th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              #
-                            </th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Name
-                            </th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Joined At
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {students.map((student, index) => (
-                            <tr 
-                              key={student.id}
-                              className={selectedStudents.includes(student.id) ? "bg-blue-50" : ""}
-                            >
-                              <td className="px-3 py-2 whitespace-nowrap">
-                                <input 
-                                  type="checkbox" 
-                                  checked={selectedStudents.includes(student.id)}
-                                  onChange={() => toggleStudentSelection(student.id)}
-                                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                />
-                              </td>
-                              <td className="px-3 py-2 whitespace-nowrap">
-                                <div className="w-6 h-6 rounded-full bg-[#3A7AFE] text-white flex items-center justify-center text-xs">
-                                  {index + 1}
-                                </div>
-                              </td>
-                              <td className="px-3 py-2 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {student.name}
-                                  {removingStudent === student.id && <span className="ml-2 text-red-500 text-xs">Removing...</span>}
-                                </div>
-                              </td>
-                              <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
-                                {new Date(student.joined_at).toLocaleTimeString()}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  </div>
+                  
+                  <div className="bg-[#EEF4FF] p-4 rounded-lg">
+                    <p className="text-sm font-medium mb-2">Game Code</p>
+                    <div className="bg-white p-3 rounded-md flex items-center justify-between">
+                      <p className="text-xl font-mono font-bold tracking-wider text-[#3A7AFE]">{gameSession?.game_code || gameCode}</p>
                     </div>
-                  ) : (
-                    <div className="p-4 text-center text-gray-500 text-sm">
-                      No students have joined yet
-                    </div>
-                  )}
+                  </div>
                 </div>
                 
                 <div className="bg-[#EEF4FF] p-3 rounded-lg">
@@ -481,7 +260,6 @@ const GameLaunch: React.FC = () => {
                     onClick={handleStartGame}
                     icon={<Play className="w-4 h-4 mr-1" />}
                     fullWidth
-                    disabled={students.length === 0}
                   >
                     Start Game Now
                   </Button>
