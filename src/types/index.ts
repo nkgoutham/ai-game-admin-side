@@ -73,6 +73,19 @@ export interface Student {
   status?: 'waiting' | 'playing' | 'completed';
 }
 
+// Game session type
+export interface GameSession {
+  id: string;
+  chapter_id: string | null;
+  teacher_name: string;
+  status: 'not_started' | 'in_progress' | 'completed';
+  game_code: string;
+  started_at: string;
+  ended_at?: string | null;
+  created_at?: string;
+  banned_students?: string[];
+}
+
 // Game state types
 export interface GameState {
   status: 'waiting' | 'countdown' | 'playing' | 'results';

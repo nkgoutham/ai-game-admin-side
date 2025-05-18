@@ -3,7 +3,7 @@
  * Manages global state for the application
  */
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { AppView, Chapter, ProcessingState, Question, Topic, UploadState, GameState } from '../types';
+import { AppView, Chapter, ProcessingState, Question, Topic, UploadState, GameState, GameSession } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface AppContextType {
@@ -21,6 +21,8 @@ interface AppContextType {
   setQuestions: (questions: Record<string, Question[]>) => void;
   gameState: GameState;
   setGameState: (state: GameState) => void;
+  gameSession: GameSession | null;
+  setGameSession: (session: GameSession | null) => void;
   resetState: () => void;
 }
 
@@ -54,25 +56,32 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [questions, setQuestions] = useState<Record<string, Question[]>>({});
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
+  const [gameSession, setGameSession] = useState<GameSession | null>(null);
 
-  // Set up real-time subscription for student status changes
+  // Set up real-time subscription for game session status changes
   useEffect(() => {
-    // Subscribe to all students table updates
+    // Subscribe to game_sessions table updates
     const subscription = supabase
-      .channel('students_channel')
+      .channel('game_sessions_channel')
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
-        table: 'students',
+        table: 'game_sessions',
       }, (payload) => {
-        console.log('Student status updated:', payload);
+        console.log('Game session updated:', payload);
         
-        // Handle student status changes here if needed
-        if (payload.new.status === 'playing' && gameState.status === 'waiting') {
-          setGameState({
-            ...gameState,
-            status: 'countdown',
-          });
+        // If we have a game session and it matches the updated one
+        if (gameSession && payload.new.id === gameSession.id) {
+          // Update our game session state
+          setGameSession(payload.new as GameSession);
+          
+          // If status changed to in_progress, update game state
+          if (payload.new.status === 'in_progress' && gameState.status === 'waiting') {
+            setGameState({
+              ...gameState,
+              status: 'countdown'
+            });
+          }
         }
       })
       .subscribe();
@@ -80,7 +89,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       supabase.removeChannel(subscription);
     };
-  }, [gameState.status]);
+  }, [gameSession, gameState.status]);
 
   const resetState = () => {
     setView('select');
@@ -90,6 +99,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setTopics([]);
     setQuestions({});
     setGameState(defaultGameState);
+    setGameSession(null);
   };
 
   return (
@@ -109,6 +119,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setQuestions,
         gameState,
         setGameState,
+        gameSession,
+        setGameSession,
         resetState,
       }}
     >

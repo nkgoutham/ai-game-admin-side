@@ -63,7 +63,7 @@ export async function extractTopics(chapterContent: string, grade: string): Prom
 
     console.log('Sending request to OpenAI...');
     const response = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
+      model: 'gpt-4o-2024-08-06',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' }
     });
@@ -152,7 +152,7 @@ export async function generateNarratives(topics: ExtractedTopic[]): Promise<Topi
 
     console.log('Sending narrative request to OpenAI...');
     const response = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
+      model: 'gpt-4o-2024-08-06',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' }
     });
@@ -230,7 +230,7 @@ export async function generateQuestions(topic: ExtractedTopic, grade: string): P
 
     console.log('Sending questions request to OpenAI for topic:', topic.title);
     const response = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
+      model: 'gpt-4o-2024-08-06',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' }
     });

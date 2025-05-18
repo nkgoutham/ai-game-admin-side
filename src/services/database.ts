@@ -164,6 +164,7 @@ export async function getOrCreateDefaultGameSession(chapterId?: string, teacherN
       .from('game_sessions')
       .select('*')
       .eq('status', 'not_started')
+      .order('created_at', { ascending: false })
       .limit(1);
     
     if (fetchError) {
@@ -188,7 +189,8 @@ export async function getOrCreateDefaultGameSession(chapterId?: string, teacherN
         teacher_name: teacherName || 'Anonymous Teacher',
         status: 'not_started',
         game_code: gameCode,
-        started_at: new Date().toISOString()
+        started_at: new Date().toISOString(),
+        banned_students: []
       })
       .select()
       .single();
@@ -203,6 +205,33 @@ export async function getOrCreateDefaultGameSession(chapterId?: string, teacherN
   } catch (error) {
     console.error('Error in getOrCreateDefaultGameSession:', error);
     throw new Error('Failed to get or create game session');
+  }
+}
+
+/**
+ * Update game session status
+ */
+export async function updateGameSessionStatus(sessionId: string, status: 'not_started' | 'in_progress' | 'completed') {
+  try {
+    console.log(`Updating game session ${sessionId} status to ${status}`);
+    
+    const { data, error } = await supabase
+      .from('game_sessions')
+      .update({ status })
+      .eq('id', sessionId)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error updating game session status:', error);
+      throw error;
+    }
+    
+    console.log('Game session status updated successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('Error updating game session status:', error);
+    throw new Error('Failed to update game session status');
   }
 }
 
@@ -352,7 +381,7 @@ export async function addStudentToSession(name: string) {
     const studentObj = {
       name,
       joined_at: new Date().toISOString(),
-      status: 'waiting' // Now the database has this column
+      status: 'waiting'
     };
     
     const { data, error } = await supabase
@@ -386,6 +415,62 @@ export async function updateStudentStatus(studentId: string, status: 'waiting' |
   } catch (error) {
     console.error('Error updating student status:', error);
     throw new Error('Failed to update student status');
+  }
+}
+
+/**
+ * Remove a student from the game
+ */
+export async function removeStudent(studentId: string) {
+  try {
+    const { error } = await supabase
+      .from('students')
+      .delete()
+      .eq('id', studentId);
+    
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    console.error('Error removing student:', error);
+    throw new Error('Failed to remove student from the game');
+  }
+}
+
+/**
+ * Ban a student from the current game session
+ */
+export async function banStudentFromSession(sessionId: string, studentId: string) {
+  try {
+    // First get current banned list
+    const { data: session, error: fetchError } = await supabase
+      .from('game_sessions')
+      .select('banned_students')
+      .eq('id', sessionId)
+      .single();
+    
+    if (fetchError) throw fetchError;
+    
+    // Update banned students array
+    const bannedStudents = session.banned_students || [];
+    if (!bannedStudents.includes(studentId)) {
+      bannedStudents.push(studentId);
+    }
+    
+    // Update the session
+    const { error: updateError } = await supabase
+      .from('game_sessions')
+      .update({ banned_students: bannedStudents })
+      .eq('id', sessionId);
+    
+    if (updateError) throw updateError;
+    
+    // Now remove the student
+    await removeStudent(studentId);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error banning student from session:', error);
+    throw new Error('Failed to ban student from game session');
   }
 }
 
