@@ -58,24 +58,30 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
   const [gameSession, setGameSession] = useState<GameSession | null>(null);
 
-  // Set up real-time subscription for student status changes
+  // Set up real-time subscription for game session status changes
   useEffect(() => {
-    // Subscribe to all students table updates
+    // Subscribe to game_sessions table updates
     const subscription = supabase
-      .channel('students_channel')
+      .channel('game_sessions_channel')
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
-        table: 'students',
+        table: 'game_sessions',
       }, (payload) => {
-        console.log('Student status updated:', payload);
+        console.log('Game session updated:', payload);
         
-        // Handle student status changes here if needed
-        if (payload.new.status === 'playing' && gameState.status === 'waiting') {
-          setGameState({
-            ...gameState,
-            status: 'countdown',
-          });
+        // If we have a game session and it matches the updated one
+        if (gameSession && payload.new.id === gameSession.id) {
+          // Update our game session state
+          setGameSession(payload.new as GameSession);
+          
+          // If status changed to in_progress, update game state
+          if (payload.new.status === 'in_progress' && gameState.status === 'waiting') {
+            setGameState({
+              ...gameState,
+              status: 'countdown'
+            });
+          }
         }
       })
       .subscribe();
@@ -83,7 +89,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       supabase.removeChannel(subscription);
     };
-  }, [gameState.status]);
+  }, [gameSession, gameState.status]);
 
   const resetState = () => {
     setView('select');

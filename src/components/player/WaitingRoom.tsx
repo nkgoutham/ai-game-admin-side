@@ -128,7 +128,7 @@ const QuestionScreen: React.FC<{
                       key={option.id}
                       className={`w-full p-4 rounded-lg text-left flex items-center justify-between ${buttonStyle} ${
                         answered ? "cursor-default" : "cursor-pointer"
-                      }`}
+                      } option-button`}
                       onClick={() => !answered && onAnswer(option.id)}
                       disabled={answered}
                     >
@@ -217,7 +217,7 @@ const WaitingRoom: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { authState } = useAuth();
-  const { gameState, setGameState, topics, questions } = useAppContext();
+  const { gameState, setGameState, topics, questions, gameSession } = useAppContext();
   
   // Countdown state for game start (5 seconds)
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -260,7 +260,7 @@ const WaitingRoom: React.FC = () => {
     fetchData();
     
     // Subscribe to students changes
-    const subscription = supabase
+    const studentSubscription = supabase
       .channel('public:students')
       .on('postgres_changes', { 
         event: 'UPDATE', 
@@ -269,9 +269,29 @@ const WaitingRoom: React.FC = () => {
       }, (payload) => {
         console.log('Student update received:', payload);
         
-        // Check if any student is changing to playing status
-        if (payload.new.status === 'playing') {
+        // Check if the current student is changing to playing status
+        if (authState.user && payload.new.id === authState.user.id && payload.new.status === 'playing') {
           // Start countdown
+          setGameState({
+            ...gameState,
+            status: 'countdown'
+          });
+        }
+      })
+      .subscribe();
+    
+    // Subscribe to game_sessions changes - this is the reliable way to detect game start
+    const sessionSubscription = supabase
+      .channel('public:game_sessions')
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'game_sessions' 
+      }, (payload) => {
+        console.log('Game session update received:', payload);
+        
+        // If game session status changes to in_progress, start the countdown
+        if (payload.new.status === 'in_progress') {
           setGameState({
             ...gameState,
             status: 'countdown'
@@ -285,7 +305,8 @@ const WaitingRoom: React.FC = () => {
     
     return () => {
       clearInterval(interval);
-      supabase.removeChannel(subscription);
+      supabase.removeChannel(studentSubscription);
+      supabase.removeChannel(sessionSubscription);
     };
   }, []);
 
@@ -550,7 +571,7 @@ const WaitingRoom: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900 bg-opacity-80 p-4 fixed inset-0 z-50">
         <div className="text-center">
-          <div className="w-24 h-24 rounded-full bg-[#3A7AFE] flex items-center justify-center mx-auto mb-8 animate-pulse">
+          <div className="w-24 h-24 rounded-full bg-[#3A7AFE] flex items-center justify-center mx-auto mb-8 animate-countdown">
             <span className="text-5xl font-bold text-white">{countdown}</span>
           </div>
           <p className="text-2xl font-bold text-white">Game Starting...</p>

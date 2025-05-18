@@ -209,6 +209,33 @@ export async function getOrCreateDefaultGameSession(chapterId?: string, teacherN
 }
 
 /**
+ * Update game session status
+ */
+export async function updateGameSessionStatus(sessionId: string, status: 'not_started' | 'in_progress' | 'completed') {
+  try {
+    console.log(`Updating game session ${sessionId} status to ${status}`);
+    
+    const { data, error } = await supabase
+      .from('game_sessions')
+      .update({ status })
+      .eq('id', sessionId)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error updating game session status:', error);
+      throw error;
+    }
+    
+    console.log('Game session status updated successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('Error updating game session status:', error);
+    throw new Error('Failed to update game session status');
+  }
+}
+
+/**
  * Get all chapters from the database
  */
 export async function getAllChapters() {

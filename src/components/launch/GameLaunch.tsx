@@ -19,7 +19,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../ui/Card';
 import Button from '../ui/Button';
 import { useAppContext } from '../../context/AppContext';
-import { getAllStudents, updateStudentStatus, removeStudent } from '../../services/database';
+import { getAllStudents, updateStudentStatus, removeStudent, updateGameSessionStatus } from '../../services/database';
 import { Student } from '../../types';
 
 const GameLaunch: React.FC = () => {
@@ -30,7 +30,8 @@ const GameLaunch: React.FC = () => {
     setView, 
     gameState,
     setGameState,
-    gameSession
+    gameSession,
+    setGameSession
   } = useAppContext();
   
   const [launchState, setLaunchState] = useState<'ready' | 'starting' | 'active'>('ready');
@@ -70,32 +71,6 @@ const GameLaunch: React.FC = () => {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchStudents();
-  };
-  
-  const handleLaunch = async () => {
-    setLaunchState('starting');
-    
-    try {
-      setTimeout(() => {
-        setLaunchState('active');
-      }, 2000);
-    } catch (error) {
-      console.error('Error launching game:', error);
-      // Handle error case
-      setLaunchState('ready');
-    }
-  };
-  
-  const handleNewGame = () => {
-    resetState();
-  };
-
-  const handleViewLobby = () => {
-    setView('lobby');
-  };
-
-  const handleBackToReview = () => {
-    setView('review');
   };
   
   // Handle student selection for potential removal
@@ -143,6 +118,11 @@ const GameLaunch: React.FC = () => {
         await updateStudentStatus(student.id, 'playing');
       }
       
+      // Update game session status to 'in_progress' if we have a session
+      if (gameSession) {
+        await updateGameSessionStatus(gameSession.id, 'in_progress');
+      }
+      
       // Update game state to playing
       setGameState({
         ...gameState,
@@ -156,6 +136,32 @@ const GameLaunch: React.FC = () => {
       console.error('Error starting game:', error);
       alert('Failed to start game. Please try again.');
     }
+  };
+  
+  const handleLaunch = async () => {
+    setLaunchState('starting');
+    
+    try {
+      setTimeout(() => {
+        setLaunchState('active');
+      }, 2000);
+    } catch (error) {
+      console.error('Error launching game:', error);
+      // Handle error case
+      setLaunchState('ready');
+    }
+  };
+  
+  const handleNewGame = () => {
+    resetState();
+  };
+
+  const handleViewLobby = () => {
+    setView('lobby');
+  };
+
+  const handleBackToReview = () => {
+    setView('review');
   };
   
   return (
