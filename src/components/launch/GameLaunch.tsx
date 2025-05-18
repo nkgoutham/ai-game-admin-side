@@ -67,12 +67,6 @@ const GameLaunch: React.FC = () => {
     }
   };
   
-  // Handle manual refresh
-  const handleRefresh = () => {
-    setRefreshing(true);
-    fetchStudents();
-  };
-  
   // Handle student selection for potential removal
   const toggleStudentSelection = (studentId: string) => {
     if (selectedStudents.includes(studentId)) {
